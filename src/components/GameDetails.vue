@@ -150,7 +150,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import genresList from '../data/genres.js' // ИСПРАВЛЕНО: правильный путь
+import genresList from '../stores/genres.js' // ИСПРАВЛЕНО: правильный путь
 import { useAuthStore } from '../stores/auth.js'
 import { useRouter } from 'vue-router'
 import { games, cart } from '../services/api.js'

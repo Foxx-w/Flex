@@ -192,7 +192,7 @@ import { useCartStore } from '../stores/cart'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import ProductCard from '../components/ProductCard.vue'
-import ProductDetails from '../components/ProductDetails.vue'
+import ProductDetails from '../components/GameDetails.vue'
 import { games as gamesApi } from '../services/api'
 
 const router = useRouter()

@@ -249,7 +249,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import GenresMenu from './GenresMenu.vue'
-import genresList from '../data/genres.js' // ИСПРАВЛЕННЫЙ ПУТЬ
+import genresList from '../stores/genres.js' // ИСПРАВЛЕННЫЙ ПУТЬ
 import { useAuthStore } from '../stores/auth.js'
 import { games } from '../services/api' // ✅ правильный импорт
 

@@ -55,7 +55,7 @@
 import { ref, onMounted } from 'vue'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
-import ProductEditModal from '../components/ProductEditModal.vue'
+import ProductEditModal from '../components/SellerProductEdit.vue'
 import { useAppStore } from '../stores/app.js' // или useAuthStore
 
 const appStore = useAppStore() // или const authStore = useAuthStore()

@@ -11,7 +11,7 @@ import Cart from './views/Cart.vue'
 import PurchaseHistory from './views/BuyHistory.vue'
 import SellerPage from './views/SellerPage.vue'
 import NotFound from './views/NotFound.vue'
-import GameDetails from './views/GameDetails.vue' // Создайте этот компонент
+import GameDetails from './components/GameDetails.vue' 
 
 // Создаем Pinia
 const pinia = createPinia()
