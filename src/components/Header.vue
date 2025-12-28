@@ -197,7 +197,7 @@ const debugCart = computed(() => ({
 
 .search-wrap {
   width: 420px;
-  height: 25px;
+  height: 35px;
   background: #FFFFFF;
   border-radius: 30px;
   display: flex;
