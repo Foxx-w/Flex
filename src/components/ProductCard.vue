@@ -1,5 +1,5 @@
 <template>
-  <div class="product-card">
+  <div class="product-card" @click="openDetails" role="button" tabindex="0" @keydown.enter="openDetails">
     <div class="product-image-wrapper">
       <!-- Используем product.imageUrl, если есть, иначе product.image -->
       <img :src="product.imageUrl || product.image" :alt="product.name || product.title" class="product-image" />
@@ -14,7 +14,7 @@
     <button 
       class="add-to-cart-btn" 
       aria-label="Добавить в корзину"
-      @click="addToCart"
+      @click="addToCart($event)"
       :class="{ 'adding': isAdding, 'added': isAdded || isInCart }"
       :disabled="isAdding || isInCart || product.count === 0"
     >
@@ -43,7 +43,7 @@ const props = defineProps({
   }
 })
 
-const emits = defineEmits(['add-to-cart'])
+const emits = defineEmits(['add-to-cart', 'open-details'])
 
 const isAdding = ref(false)
 const isAdded = ref(false)
@@ -84,9 +84,11 @@ const buttonText = computed(() => {
   return 'В корзину'
 })
 
-const addToCart = () => {
+const addToCart = (event) => {
+  // предотвращаем открытие деталей при клике на кнопку корзины
+  if (event && event.stopPropagation) event.stopPropagation()
   if (isAdding.value || isAdded.value || isInCart.value || props.product.count === 0) return
-  
+
   isAdding.value = true
   
   // Сохраняем в гостевую корзину
@@ -111,6 +113,10 @@ const addToCart = () => {
     
     console.log('Товар добавлен в корзину:', props.product)
   }, 800)
+}
+
+const openDetails = () => {
+  emits('open-details', props.product.id)
 }
 
 // Сохранение в гостевую корзину

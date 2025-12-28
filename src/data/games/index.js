@@ -1,7 +1,25 @@
-import homeProducts from './home-products.json'
+import products from './products.json'
 
-// Используем только `home-products.json` как источник товаров.
-let games = homeProducts.map(g => ({ ...g }))
+// Попытаемся загрузить сохранённые mock-данные из localStorage (для разработки)
+const STORAGE_KEY = 'mock_products_v1'
+
+let games = []
+try {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (raw) {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length) {
+      games = parsed.map(g => ({ ...g }))
+    }
+  }
+} catch (e) {
+  console.warn('Не удалось прочитать mock_products из localStorage:', e)
+}
+
+// Если в localStorage ничего нет — берём из products.json
+if (!games || games.length === 0) {
+  games = products.map(g => ({ ...g }))
+}
 
 // Уникальные id
 const ids = new Set()
@@ -33,6 +51,14 @@ export function getAll(minPrice, maxPrice, gameTitle, genres, page = 1, pageSize
   return Promise.resolve({ content, pageNumber: page, pageSize, totalElements, totalPages })
 }
 
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(games))
+  } catch (e) {
+    console.warn('Не удалось сохранить mock_products в localStorage:', e)
+  }
+}
+
 export function getById(id) {
   const g = games.find(x => String(x.id) === String(id))
   if (!g) return Promise.resolve({ statusCode: 404, message: 'Not found' })
@@ -43,6 +69,7 @@ export function create(formData) {
   const payload = normalizeFormData(formData)
   const newGame = { id: nextId++, createdAt: new Date().toISOString(), ...payload }
   games.push(newGame)
+  persist()
   return Promise.resolve(clone(newGame))
 }
 
@@ -51,6 +78,7 @@ export function update(id, formData) {
   const idx = games.findIndex(x => String(x.id) === String(id))
   if (idx === -1) return Promise.resolve({ statusCode: 404, message: 'Not found' })
   games[idx] = { ...games[idx], ...payload }
+  persist()
   return Promise.resolve(clone(games[idx]))
 }
 
@@ -58,6 +86,7 @@ export function remove(id) {
   const idx = games.findIndex(x => String(x.id) === String(id))
   if (idx === -1) return Promise.resolve({ statusCode: 404, message: 'Not found' })
   games.splice(idx, 1)
+  persist()
   return Promise.resolve({})
 }
 
@@ -79,6 +108,7 @@ export function addKeys(id, formData) {
   }
 
   games[idx].count = (games[idx].count || 0) + added
+  persist()
   return Promise.resolve(clone(games[idx]))
 }
 
@@ -91,10 +121,18 @@ function normalizeFormData(fd) {
       // Приведём ключи: Title -> title, Price -> price
       const key = k.replace(/^(.).*$/, (m) => m)
       if (k === 'Price') obj.price = Number(v)
-      else if (k === 'Title') obj.title = v
+      else if (k === 'Title') { obj.title = v; obj.name = v }
       else if (k === 'DeveloperTitle') obj.developerTitle = v
       else if (k === 'PublisherTitle') obj.publisherTitle = v
       else if (k === 'Description') obj.description = v
+      else if (k === 'Language' || k === 'language' || k === 'Lang' || k === 'lang') obj.language = v
+      else if (k === 'ImageData') {
+        // base64 preview string
+        obj.image = v
+        obj.imageUrl = v
+      } else if (k === 'CardImageData') {
+        obj.cardImage = v
+      }
       else if (k.startsWith('Genres[')) {
         // Genres[0].Title => add to genres
         obj.genres = obj.genres || []

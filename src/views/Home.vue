@@ -92,6 +92,15 @@
         </button>
       </div>
 
+      <!-- Жанры: используем единый меню-компонент -->
+      <div style="max-width:1200px;margin:18px auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <!-- Текст метки убран — меню жанров открывается через шапку -->
+        <!-- Убрано отображение выбранных тегов: используем чекбоксы в GenresMenu -->
+        <button v-if="selectedGenreIds.length" class="reset-filter-btn" @click="clearHomeGenres">×</button>
+      </div>
+
+      <!-- Global GenresMenu is rendered in App.vue; header toggles `showGenresMenu` in the shared store. -->
+
       <!-- Информация о фильтре -->
       <div v-if="filterApplied && (minPrice || maxPrice)" class="filter-info">
         <span class="filter-text">Фильтр: </span>
@@ -116,19 +125,27 @@
           :key="product.id"
           :product="{
             id: product.id,
-            title: product.name,
+            title: product.name || product.title,
             price: product.price,
-            imageUrl: product.image,
-            count: product.count || 10
+            imageUrl: product.cardImage || product.image || product.imageUrl,
+            count: product.count || 10,
+            description: product.description || ''
           }"
-          @open-details="openProductModal"
           @add-to-cart="handleAddToCart"
+          @open-details="openProductModal"
         />
         
         <div v-if="displayedProducts.length === 0 && filterApplied" class="no-results">
           {{ noResultsMessage }}
         </div>
       </div>
+
+      <!-- Блок ProductDetails (демо: отображаем детали первого товара на странице) -->
+      <!-- demo ProductDetails removed -->
+
+      <!-- inline product details removed -->
+
+      <!-- inline product details removed; ProductDetails modal used instead -->
 
       <!-- Пагинация -->
       <div v-if="totalPages > 1 && displayedProducts.length > 0" class="pagination">
@@ -175,6 +192,7 @@
       <ProductDetails
         v-if="selectedProductId"
         :game-id="selectedProductId"
+        :game="selectedProduct"
         :is-visible="!!selectedProductId"
         @close="closeProductModal"
         @add-to-cart="handleAddToCartFromModal"
@@ -189,6 +207,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import genresList from '../data/genres.js'
+import { selectedGenreIds } from '../stores/ui'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import ProductCard from '../components/ProductCard.vue'
@@ -207,6 +227,11 @@ const filterApplied = ref(false)
 
 // Модальное окно
 const selectedProductId = ref(null)
+const selectedProduct = ref(null)
+
+// Фильтр жанров (на главной) — используем общий стор
+// `selectedGenreIds` и `showGenresMenu` берутся из `src/stores/ui.js`
+const clearHomeGenres = () => { selectedGenreIds.value = [] }
 
 // Пагинация
 const currentPage = ref(1)
@@ -214,6 +239,8 @@ const itemsPerPage = ref(10)
 
 // Массив товаров (подгружаем через сервис games)
 const products = ref([])
+
+// displayedInlineProduct removed — inline details disabled
 
 const loadProducts = async () => {
   try {
@@ -327,13 +354,18 @@ const resetFilter = () => {
 
 // Открытие модалки
 const openProductModal = (productId) => {
+  console.log('openProductModal called with', productId)
   selectedProductId.value = productId
+  // найдём объект в локальном массиве и передадим его в модал, чтобы не полагаться на API
+  selectedProduct.value = products.value.find(p => String(p.id) === String(productId)) || null
+  console.log('selectedProduct resolved:', selectedProduct.value)
   document.body.style.overflow = 'hidden'
 }
 
 // Закрытие модалки
 const closeProductModal = () => {
   selectedProductId.value = null
+  selectedProduct.value = null
   document.body.style.overflow = ''
 }
 
@@ -383,20 +415,34 @@ onUnmounted(() => {
 
 // Отфильтрованные товары
 const displayedProducts = computed(() => {
-  if (!filterApplied.value) {
-    return products.value
+  let list = products.value || []
+
+  // Фильтрация по жанрам (если выбраны)
+    if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
+    const getId = (gg) => {
+      const raw = gg && (gg.title || gg) || ''
+      const found = genresList.find(x => x.id === raw || x.label === raw)
+      return found ? found.id : null
+    }
+    list = list.filter(p => {
+      const g = p.genres || p.tags || p.categories || []
+      return g.some(gg => selectedGenreIds.value.includes(getId(gg)))
+    })
   }
-  
-  return products.value.filter(product => {
+
+  // Фильтрация по цене (если применён фильтр)
+  if (!filterApplied.value) return list
+
+  return list.filter(product => {
     const price = product.price
-    
+
     if (minPrice.value === null && maxPrice.value === null) {
       return true
     }
-    
+
     const minValid = minPrice.value === null || price >= minPrice.value
     const maxValid = maxPrice.value === null || price <= maxPrice.value
-    
+
     return minValid && maxValid
   })
 })
@@ -778,6 +824,8 @@ body {
   animation: successPulse 0.5s ease-in-out;
 }
 
+/* inline product details styles removed */
+
 @keyframes successPulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
@@ -828,6 +876,24 @@ body {
   justify-content: center;
   justify-items: center;
 }
+
+.genre-filter-btn {
+  background: #EFEFEF;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: 'Montserrat Alternates', sans-serif;
+  color: #222;
+}
+.genre-filter-btn.active {
+  background: #A53DFF;
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Встроенный шаблон ProductDetails */
+/* inline product details styles removed */
 
 /* Адаптивные точки */
 @media (max-width: 1600px) {

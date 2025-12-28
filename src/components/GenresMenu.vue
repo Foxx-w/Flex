@@ -1,17 +1,21 @@
 <template>
-  <div v-if="visible" class="genres-overlay" :style="overlayStyle" @click.self="close">
+  <div v-if="visible" class="genres-overlay" :style="overlayStyle" @click.self="dismiss">
     <div class="genres-menu" :style="menuStyle" role="dialog" aria-label="Жанры">
+      <div class="genres-header">
+        <button type="button" class="close-btn" @click="dismiss" aria-label="Закрыть">×</button>
+        <button type="button" class="apply-btn" @click="applySelection">Применить</button>
+      </div>
       <div class="genres-inner" ref="inner">
         <div class="genres-list">
-          <div v-for="(g, idx) in genresLeft" :key="g" class="genre-item">
+          <div v-for="(g, idx) in genresLeft" :key="g.id" class="genre-item">
             <CheckBox v-model="checked[idx]" />
-            <span class="genre-label">{{ g }}</span>
+            <span class="genre-label">{{ g.label }}</span>
           </div>
         </div>
         <div class="genres-list">
-          <div v-for="(g, idx) in genresRight" :key="g" class="genre-item">
+          <div v-for="(g, idx) in genresRight" :key="g.id" class="genre-item">
             <CheckBox v-model="checked[genresLeft.length + idx]" />
-            <span class="genre-label">{{ g }}</span>
+            <span class="genre-label">{{ g.label }}</span>
           </div>
         </div>
       </div>
@@ -22,28 +26,13 @@
 <script setup>
 import { defineProps, defineEmits, watch, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import CheckBox from './CheckBox.vue'
+import genresList from '../data/genres.js'
 
-const props = defineProps({ visible: { type: Boolean, default: false } })
-const emits = defineEmits(['update:visible', 'close'])
+const props = defineProps({ visible: { type: Boolean, default: false }, initialSelected: { type: Array, default: () => [] } })
+const emits = defineEmits(['update:visible', 'close', 'apply'])
 
-const genres = [
-  'Шутер от первого лица',
-  'Шутер от третьего лица',
-  'Стратегии и тактические ролевые',
-  'Симуляторы строительства и автоматизации',
-  'Симуляторы хобби и работы',
-  'Казуальные',
-  'Рогалики',
-  'Карточные и настольные',
-  'Пошаговые стратегии',
-  'Научная фантастика',
-  'Головоломки',
-  'Башенная защита',
-  'Спортивные симуляторы',
-  'Хорроры',
-  'Гонки',
-  'Выживание'
-]
+// импортируем единый список жанров (id — для фильтра/сохранения, label — для UI)
+const genres = genresList
 
 const half = Math.ceil(genres.length / 2)
 const genresLeft = genres.slice(0, half)
@@ -54,7 +43,18 @@ const overlayStyle = ref({})
 const checked = ref(new Array(genres.length).fill(false))
 const inner = ref(null)
 
-function close(){ emits('update:visible', false); emits('close') }
+function applySelection(){
+  // отдаём выбранные жанры (id) при применении
+  const selected = genres.filter((g, idx) => checked.value[idx]).map(g => g.id)
+  emits('apply', selected)
+  emits('update:visible', false)
+}
+
+function dismiss(){
+  // закрываем без применения
+  emits('update:visible', false)
+  emits('close')
+}
 
 function positionMenu(){
   // желаемая максимальная высота меню; будет ограничена доступным местом в окне
@@ -73,13 +73,32 @@ function positionMenu(){
   const anchor = document.querySelector('.site-header .header-inner')
   const rect = anchor ? anchor.getBoundingClientRect() : { left: 0, width: window.innerWidth }
   const headerRect = headerEl ? headerEl.getBoundingClientRect() : rect
-  const overlayTop = Math.round(headerRect.bottom + window.scrollY)
-  // вычисляем доступное вертикальное пространство под хедером и ограничиваем высоту меню
-  const availableBelow = Math.max(window.innerHeight - overlayTop - viewportPad, 120)
-  const finalMenuHeight = Math.min(desiredMenuHeight, availableBelow)
-  // размещаем overlay прямо под хедером (без зазора) и центрируем меню горизонтально
-  overlayStyle.value = { position: 'absolute', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1100, display: 'flex', justifyContent: 'center' }
-  menuStyle.value = { position: 'relative', width: menuWidth + 'px', height: finalMenuHeight + 'px', top: '0px', zIndex: 1101 }
+  // если есть модальное окно товара и меню рендерится внутри него — позиционируем относительно модального окна
+  const productModal = document.querySelector('.product-edit-modal') || document.querySelector('.modal-window')
+  const modalRect = productModal ? productModal.getBoundingClientRect() : null
+
+  // предпочитаем размещение внутри модального окна (absolute), иначе используем fixed поверх страницы
+  if (productModal) {
+    // отступ сверху внутри модального окна
+    const insideTop = 8
+    // ограничиваем высоту меню чтобы оно влезало внутрь модального окна
+    const availableInside = Math.max((productModal.clientHeight || window.innerHeight) - insideTop - viewportPad, 120)
+    const finalMenuHeight = Math.min(desiredMenuHeight, availableInside)
+
+    overlayStyle.value = { position: 'absolute', left: 0, right: 0, top: insideTop + 'px', pointerEvents: 'auto', zIndex: 1300, display: 'flex', justifyContent: 'center' }
+    // подогнать ширину под контейнер, но не превышать рассчитанную menuWidth
+    const containerWidth = productModal.clientWidth || window.innerWidth
+    const finalWidth = Math.min(menuWidth, Math.max(320, containerWidth - 40))
+    menuStyle.value = { position: 'relative', width: finalWidth + 'px', height: finalMenuHeight + 'px', top: '0px', zIndex: 1201 }
+  } else {
+    // fallback — фиксированное позиционирование над страницей
+    // place menu directly below header (with small gap) to avoid overlapping header
+    const overlayTop = headerRect && headerRect.bottom ? Math.round(headerRect.bottom) + 8 : 8
+    const availableBelow = Math.max(window.innerHeight - overlayTop - viewportPad, 120)
+    const finalMenuHeight = Math.min(desiredMenuHeight, availableBelow)
+    overlayStyle.value = { position: 'fixed', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1300, display: 'flex', justifyContent: 'center' }
+    menuStyle.value = { position: 'relative', width: menuWidth + 'px', height: finalMenuHeight + 'px', top: '0px', zIndex: 1201 }
+  }
   
   // сбрасываем позицию прокрутки в начало, чтобы первые элементы были видны без скроллинга
   if(inner.value) {
@@ -99,6 +118,13 @@ watch(()=>props.visible, async (v)=>{
   }
 })
 
+// sync initial selection
+// initialSelected expected as array of ids (e.g. ['FPS','RPG'])
+watch(()=>props.initialSelected, (arr)=>{
+  if(!Array.isArray(arr)) return
+  checked.value = genres.map(g => arr.includes(g.id))
+}, { immediate: true })
+
 onBeforeUnmount(()=>{
   window.removeEventListener('resize', positionMenu)
 })
@@ -106,9 +132,15 @@ onBeforeUnmount(()=>{
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
-.genres-overlay{position:absolute;left:0;right:0;display:block;pointer-events:auto}
-.genres-menu{position:absolute;top:0;background:#E2E2E2;border-top-left-radius:0;border-top-right-radius:0;border-bottom-left-radius:30px;border-bottom-right-radius:30px;box-sizing:border-box;padding:20px 32px 12px 32px;color:#111;overflow:hidden;position:relative}
+.genres-overlay{position:fixed;left:0;right:0;display:block;pointer-events:auto}
+.genres-menu{position:relative;top:0;background:#E2E2E2;border-top-left-radius:12px;border-top-right-radius:12px;border-bottom-left-radius:30px;border-bottom-right-radius:30px;box-sizing:border-box;padding:20px 32px 12px 32px;color:#111;overflow:hidden}
 .genres-inner{display:flex;flex-direction:row;gap:40px;align-items:flex-start;justify-content:center;overflow-y:auto;max-height:calc(100% - 24px);scroll-behavior:smooth;padding-right:8px;padding-top:0}
+
+.genres-header{display:flex;justify-content:flex-end;align-items:center;gap:8px;padding-bottom:8px}
+.close-btn{background:transparent;border:none;font-size:20px;line-height:1;cursor:pointer;padding:6px 10px;color:#333;border-radius:6px;position:relative}
+.apply-btn{background:#A53DFF;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-family:'Montserrat',sans-serif}
+.close-btn:focus,.apply-btn:focus{outline:2px solid rgba(165,61,255,0.18)}
+.close-btn:hover{background:rgba(0,0,0,0.04)}
 
 @media (max-width: 761px){
   .genres-inner{flex-direction:column-reverse;gap:24px;align-items:center}
@@ -122,9 +154,7 @@ onBeforeUnmount(()=>{
 .genres-inner{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
 
 /* тонкие градиентные оверлеи, указывающие на наличие дополнительного контента */
-.genres-menu::before,.genres-menu::after{content:"";position:absolute;left:0;right:0;height:8px;pointer-events:none}
-.genres-menu::before{top:20px;background:linear-gradient(to bottom,#E2E2E2,rgba(226,226,226,0))}
-.genres-menu::after{bottom:0;background:linear-gradient(to top,#E2E2E2,rgba(226,226,226,0))}
+.genres-menu::after{content:"";position:absolute;left:0;right:0;height:8px;pointer-events:none;bottom:0;background:linear-gradient(to top,#E2E2E2,rgba(226,226,226,0))}
 
 /* Адаптивный макет: одна колонка на узких экранах */
 
