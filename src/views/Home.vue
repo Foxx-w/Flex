@@ -3,6 +3,7 @@
     <SiteHeader />
 
     <main class="home-canvas" role="main" aria-label="Главная страница">
+      <!-- Рекламные блоки -->
       <section class="three-blocks">
         <aside class="left-block">
           <h2 class="left-title">Новинки!</h2>
@@ -21,15 +22,16 @@
         </aside>
 
         <div class="center-block">
-          <img src="/src/assets/photos/baner.png" alt="baner" />
+          <img src="/src/assets/photos/baner.png" alt="Рекламный баннер" />
         </div>
 
         <div class="right-block">
           <div class="promo-text">Новинка!</div>
-          <img src="/src/assets/photos/new.png" alt="new" />
+          <img src="/src/assets/photos/new.png" alt="Новая игра" />
         </div>
       </section>
       
+      <!-- Фильтр по цене -->
       <div class="price-filter" role="region" aria-label="Фильтр по цене">
         <div class="pf-fields">
           <label class="pf-field">
@@ -84,22 +86,13 @@
           @click="applyFilter"
           @mouseenter="hoverButton"
           @mouseleave="resetButton"
-          aria-label="Готово"
+          aria-label="Применить фильтр"
         >
           <span v-if="!isLoading && !isSuccess">Готово</span>
           <span v-else-if="isSuccess" class="success-icon">✓</span>
           <span v-else class="loader"></span>
         </button>
       </div>
-
-      <!-- Жанры: используем единый меню-компонент -->
-      <div style="max-width:1200px;margin:18px auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <!-- Текст метки убран — меню жанров открывается через шапку -->
-        <!-- Убрано отображение выбранных тегов: используем чекбоксы в GenresMenu -->
-        <!-- reset button removed as requested -->
-      </div>
-
-      <!-- Global GenresMenu is rendered in App.vue; header toggles `showGenresMenu` in the shared store. -->
 
       <!-- Информация о фильтре -->
       <div v-if="filterApplied && (minPrice || maxPrice)" class="filter-info">
@@ -114,23 +107,16 @@
           до {{ formatPrice(maxPrice) }} ₽
         </span>
         <span class="filter-count">
-          (найдено {{ displayedProducts.length }} из {{ products.length }} товаров)
+          (найдено {{ displayedProducts.length }} из {{ allProducts.length }} товаров)
         </span>
       </div>
 
+      <!-- Сетка товаров -->
       <div class="products-grid">
-        <!-- Карточки товаров -->
         <ProductCard 
           v-for="product in paginatedProducts" 
           :key="product.id"
-          :product="{
-            id: product.id,
-            title: product.name || product.title,
-            price: product.price,
-            imageUrl: product.cardImage || product.image || product.imageUrl,
-            count: product.count || 10,
-            description: product.description || ''
-          }"
+          :product="product"
           @add-to-cart="handleAddToCart"
           @open-details="openProductModal"
         />
@@ -139,13 +125,6 @@
           {{ noResultsMessage }}
         </div>
       </div>
-
-      <!-- Блок ProductDetails (демо: отображаем детали первого товара на странице) -->
-      <!-- demo ProductDetails removed -->
-
-      <!-- inline product details removed -->
-
-      <!-- inline product details removed; ProductDetails modal used instead -->
 
       <!-- Пагинация -->
       <div v-if="totalPages > 1 && displayedProducts.length > 0" class="pagination">
@@ -206,14 +185,19 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import genresList from '../data/genres.js'
+import { useRouter } from 'vue-router'
 import { selectedGenreIds } from '../stores/ui'
+import { useAuthStore } from '../stores/auth'
+import { useCartStore } from '../stores/cart'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import ProductCard from '../components/ProductCard.vue'
 import ProductDetails from '../components/ProductDetails.vue'
-import { games } from '../services/api'
+import { games as gamesApi } from '../services/api'
 
+const router = useRouter()
+const authStore = useAuthStore()
+const cartStore = useCartStore()
 
 // Реактивные данные для фильтров
 const minPriceInput = ref('')
@@ -226,53 +210,76 @@ const filterApplied = ref(false)
 
 // Модальное окно
 const selectedProductId = ref(null)
-const selectedProduct = ref(null)
-
-// Фильтр жанров (на главной) — используем общий стор
-// `selectedGenreIds` и `showGenresMenu` берутся из `src/stores/ui.js`
-const clearHomeGenres = () => { selectedGenreIds.value = [] }
-
-// Когда пользователь выбирает жанры через глобальное меню — включаем флаг фильтра
-watch(() => selectedGenreIds.value, (val) => {
-  if (Array.isArray(val) && val.length > 0) {
-    filterApplied.value = true
-    currentPage.value = 1
-  } else {
-    // если жанров нет — не считаем фильтр активным только по ним
-    // но не сбрасываем price-filter флаг
-  }
-})
 
 // Пагинация
 const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
-// Массив товаров (подгружаем через сервис games)
-const products = ref([])
+// Массив всех товаров
+const allProducts = ref([])
 
-// displayedInlineProduct removed — inline details disabled
-
+// Загрузка товаров
 const loadProducts = async (filters = {}) => {
   try {
-    const resp = await games.list({ Page: 1, PageSize: 1000, ...filters })
-    if (Array.isArray(resp)) {
-      products.value = resp
-    } else if (resp && Array.isArray(resp.content)) {
-      products.value = resp.content
-    } else if (resp && resp.id) {
-      products.value = [resp]
-    } else {
-      products.value = []
+    isLoading.value = true
+    
+    // Используем API с правильными параметрами
+    const params = {
+      Page: filters.Page || 1,
+      PageSize: filters.PageSize || 1000,
+      MinPrice: filters.MinPrice,
+      MaxPrice: filters.MaxPrice,
+      GameTitle: filters.GameTitle,
+      Genres: filters.Genres || []
     }
-  } catch (e) {
-    console.error('Не удалось загрузить продукты:', e)
-    products.value = []
+    
+    // Очищаем undefined/null значения
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || 
+          (Array.isArray(params[key]) && params[key].length === 0)) {
+        delete params[key]
+      }
+    })
+    
+    const response = await gamesApi.list(params)
+    
+    // Обрабатываем разные форматы ответа
+    if (Array.isArray(response)) {
+      allProducts.value = response
+    } else if (response && Array.isArray(response.content)) {
+      allProducts.value = response.content
+    } else if (response && response.id) {
+      allProducts.value = [response]
+    } else {
+      allProducts.value = []
+      console.warn('Неожиданный формат ответа:', response)
+    }
+    
+    console.log('Загружено товаров:', allProducts.value.length)
+  } catch (error) {
+    console.error('Ошибка загрузки товаров:', error)
+    allProducts.value = []
+  } finally {
+    isLoading.value = false
   }
 }
 
-onMounted(() => {
-  loadProducts()
+// Загружаем товары при монтировании
+onMounted(async () => {
+  await loadProducts()
 })
+
+// Следим за изменениями фильтров жанров
+watch(() => selectedGenreIds.value, (newGenres) => {
+  if (newGenres && newGenres.length > 0) {
+    filterApplied.value = true
+    currentPage.value = 1
+    applyFilter()
+  } else if (filterApplied.value && !minPrice.value && !maxPrice.value) {
+    filterApplied.value = false
+    resetFilter()
+  }
+}, { deep: true })
 
 // Форматирование цены
 const formatPrice = (price) => {
@@ -326,6 +333,7 @@ const applyFilter = async () => {
   if (isLoading.value) return
 
   isLoading.value = true
+  isSuccess.value = false
 
   minPrice.value = minPriceInput.value ? parseInt(minPriceInput.value) : null
   maxPrice.value = maxPriceInput.value ? parseInt(maxPriceInput.value) : null
@@ -345,58 +353,83 @@ const applyFilter = async () => {
     if (selectedGenreIds.value && selectedGenreIds.value.length) filters.Genres = selectedGenreIds.value
 
     await loadProducts(filters)
-  } catch (e) {
-    console.error('Ошибка фильтрации:', e)
+    isSuccess.value = true
+    
+    // Сбрасываем успешное состояние через 2 секунды
+    setTimeout(() => {
+      isSuccess.value = false
+    }, 2000)
+  } catch (error) {
+    console.error('Ошибка фильтрации:', error)
+    alert('Ошибка при применении фильтра')
   } finally {
     isLoading.value = false
   }
 }
 
 // Сброс фильтра
-const resetFilter = () => {
+const resetFilter = async () => {
   minPriceInput.value = ''
   maxPriceInput.value = ''
   minPrice.value = null
   maxPrice.value = null
+  selectedGenreIds.value = []
   filterApplied.value = false
   currentPage.value = 1
+  
+  // Загружаем все товары заново
+  await loadProducts()
 }
 
-// Открытие модалки
+// Открытие модалки с деталями товара
 const openProductModal = (productId) => {
   selectedProductId.value = productId
-  selectedProduct.value = null
   document.body.style.overflow = 'hidden'
 }
 
 // Закрытие модалки
 const closeProductModal = () => {
   selectedProductId.value = null
-  selectedProduct.value = null
   document.body.style.overflow = ''
 }
 
-// Обработка добавления в корзину из модалки
-const handleAddToCartFromModal = (productId) => {
-  console.log('Товар добавлен в корзину из модалки:', productId)
-  const product = products.value.find(p => p.id === productId)
-  if (product && product.count > 0) {
-    product.count -= 1
+// Обработка добавления в корзину из карточки товара
+const handleAddToCart = async (product) => {
+  // Проверяем авторизацию
+  if (!authStore.isAuthenticated) {
+    alert('Войдите в аккаунт как покупатель чтобы добавить товар в корзину')
+    router.push('/login')
+    return
   }
-  alert('Товар добавлен в корзину!')
+  
+  if (authStore.userRole !== 'CUSTOMER') {
+    alert('Корзина доступна только покупателям')
+    return
+  }
+  
+  try {
+    const success = await cartStore.addToCart(product.id, 1)
+    if (success) {
+      alert(`Товар "${product.title}" добавлен в корзину!`)
+    } else {
+      alert('Не удалось добавить товар в корзину')
+    }
+  } catch (error) {
+    console.error('Ошибка добавления в корзину:', error)
+    alert('Ошибка при добавлении в корзину')
+  }
 }
 
-// Обработка добавления в корзину из карточки
-const handleAddToCart = (productId) => {
-  console.log('Товар добавлен в корзину из карточки:', productId)
-  const product = products.value.find(p => p.id === productId)
-  if (product && product.count > 0) {
-    product.count -= 1
+// Обработка добавления в корзину из модалки
+const handleAddToCartFromModal = async (productId) => {
+  const product = allProducts.value.find(p => p.id === productId)
+  if (product) {
+    await handleAddToCart(product)
   }
 }
 
 // Обработка покупки
-const handleBuyNow = (order) => {
+const handleBuyNow = async (order) => {
   console.log('Заказ создан:', order)
   alert('Заказ успешно оформлен!')
   closeProductModal()
@@ -422,36 +455,35 @@ onUnmounted(() => {
 
 // Отфильтрованные товары
 const displayedProducts = computed(() => {
-  let list = products.value || []
-
-  // Фильтрация по жанрам (если выбраны)
-    if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
-    const getId = (gg) => {
-      const raw = gg && (gg.title || gg) || ''
-      const found = genresList.find(x => x.id === raw || x.label === raw)
-      return found ? found.id : null
-    }
-    list = list.filter(p => {
-      const g = p.genres || p.tags || p.categories || []
-      return g.some(gg => selectedGenreIds.value.includes(getId(gg)))
+  if (!filterApplied.value) {
+    return allProducts.value
+  }
+  
+  let filtered = [...allProducts.value]
+  
+  // Фильтрация по цене
+  if (minPrice.value !== null || maxPrice.value !== null) {
+    filtered = filtered.filter(product => {
+      const price = product.price || 0
+      const minValid = minPrice.value === null || price >= minPrice.value
+      const maxValid = maxPrice.value === null || price <= maxPrice.value
+      return minValid && maxValid
     })
   }
-
-  // Фильтрация по цене (если применён фильтр)
-  if (!filterApplied.value) return list
-
-  return list.filter(product => {
-    const price = product.price
-
-    if (minPrice.value === null && maxPrice.value === null) {
-      return true
-    }
-
-    const minValid = minPrice.value === null || price >= minPrice.value
-    const maxValid = maxPrice.value === null || price <= maxPrice.value
-
-    return minValid && maxValid
-  })
+  
+  // Фильтрация по жанрам
+  if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
+    filtered = filtered.filter(product => {
+      const productGenres = product.genres || []
+      return selectedGenreIds.value.some(genreId => 
+        productGenres.some(g => 
+          g.id === genreId || g.title === genreId
+        )
+      )
+    })
+  }
+  
+  return filtered
 })
 
 // Пагинация
@@ -498,15 +530,19 @@ const hasEllipsisEnd = computed(() => {
 const noResultsMessage = computed(() => {
   if (!filterApplied.value) return ''
   
+  let message = 'Товары не найдены'
+  
   if (minPrice.value !== null && maxPrice.value !== null) {
-    return `Товары в диапазоне от ${formatPrice(minPrice.value)} до ${formatPrice(maxPrice.value)} ₽ не найдены`
+    message = `Товары в диапазоне от ${formatPrice(minPrice.value)} до ${formatPrice(maxPrice.value)} ₽ не найдены`
   } else if (minPrice.value !== null) {
-    return `Товары от ${formatPrice(minPrice.value)} ₽ не найдены`
+    message = `Товары от ${formatPrice(minPrice.value)} ₽ не найдены`
   } else if (maxPrice.value !== null) {
-    return `Товары до ${formatPrice(maxPrice.value)} ₽ не найдены`
+    message = `Товары до ${formatPrice(maxPrice.value)} ₽ не найдены`
+  } else if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
+    message = 'Товары по выбранным жанрам не найдены'
   }
   
-  return 'Товары не найдены'
+  return message
 })
 
 // Функции пагинации
@@ -530,10 +566,13 @@ const goToPage = (page) => {
 }
 
 const scrollToTop = () => {
-  window.scrollTo({
-    top: document.querySelector('.products-grid').offsetTop - 100,
-    behavior: 'smooth'
-  })
+  const productsGrid = document.querySelector('.products-grid')
+  if (productsGrid) {
+    window.scrollTo({
+      top: productsGrid.offsetTop - 100,
+      behavior: 'smooth'
+    })
+  }
 }
 
 // Анимация при наведении
@@ -549,6 +588,7 @@ const resetButton = (event) => {
   }
 }
 </script>
+
 
 <style> 
 @import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;600&display=swap');

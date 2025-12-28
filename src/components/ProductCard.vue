@@ -1,22 +1,20 @@
 <template>
   <div class="product-card" @click="openDetails" role="button" tabindex="0" @keydown.enter="openDetails">
     <div class="product-image-wrapper">
-      <!-- Используем product.imageUrl, если есть, иначе product.image -->
       <img :src="product.imageUrl || product.image" :alt="product.name || product.title" class="product-image" />
     </div>
     
     <div class="product-info">
-      <!-- Используем product.name, если есть, иначе product.title -->
       <h3 class="product-name">{{ product.name || product.title }}</h3>
-      <div class="product-price">{{ formatPrice(product.price) }} Руб.</div>
+      <div class="product-price">{{ formatPrice(product.price) }} ₽</div>
     </div>
 
     <button 
       class="add-to-cart-btn" 
       aria-label="Добавить в корзину"
-      @click="addToCart($event)"
+      @click.stop="addToCart"
       :class="{ 'adding': isAdding, 'added': isAdded || isInCart }"
-      :disabled="isAdding || isInCart || product.count === 0"
+      :disabled="isAdding || isInCart || !isAvailable || !canAddToCart"
     >
       <span class="btn-text">{{ buttonText }}</span>
       <span class="btn-icon">✓</span>
@@ -25,9 +23,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useCartStore } from '../stores/cart'
 
 const props = defineProps({
   product: {
@@ -35,35 +34,53 @@ const props = defineProps({
     required: true,
     default: () => ({
       id: null,
-      name: '',        // поддерживаем name
-      title: '',       // поддерживаем title
+      name: '',
+      title: '',
       price: 0,
-      image: '',       // поддерживаем image
-      imageUrl: '',    // поддерживаем imageUrl
-      count: 0
+      image: '',
+      imageUrl: '',
+      count: 0,
+      description: ''
     })
   }
 })
 
-const emits = defineEmits(['add-to-cart', 'open-details'])
+const emit = defineEmits(['add-to-cart', 'open-details'])
+
+const router = useRouter()
+const authStore = useAuthStore()
+const cartStore = useCartStore()
 
 const isAdding = ref(false)
 const isAdded = ref(false)
-const isInCart = ref(false)
 
-const router = useRouter()
-const authStore = useAuthStore?.()
+// Проверяем, доступен ли товар
+const isAvailable = computed(() => {
+  return props.product.count !== undefined && props.product.count !== null 
+    ? props.product.count > 0 
+    : true // Если count не указан, считаем что доступен
+})
 
-// Проверяем, есть ли товар в гостевой корзине
-const checkIfInCart = () => {
-  try {
-    const guestCart = JSON.parse(localStorage.getItem('guestCart') || '[]')
-    isInCart.value = guestCart.some(item => item.id === props.product.id)
-  } catch (e) {
-    console.error('Ошибка проверки корзины:', e)
-    isInCart.value = false
+// Проверяем, может ли пользователь добавлять в корзину
+const canAddToCart = computed(() => {
+  return authStore.isAuthenticated && authStore.userRole === 'CUSTOMER'
+})
+
+// Проверяем, есть ли товар в корзине
+const isInCart = computed(() => {
+  if (!authStore.isAuthenticated || authStore.userRole !== 'CUSTOMER') {
+    return false
   }
-}
+  return cartStore.isInCart(props.product.id)
+})
+
+// Получаем количество товара в корзине
+const quantityInCart = computed(() => {
+  if (!authStore.isAuthenticated || authStore.userRole !== 'CUSTOMER') {
+    return 0
+  }
+  return cartStore.getItemQuantity(props.product.id)
+})
 
 // Форматирование цены
 const formatPrice = (price) => {
@@ -72,116 +89,90 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('ru-RU').format(numPrice)
 }
 
-// Получаем имя товара (из name или title)
-const productName = computed(() => {
-  return props.product.name || props.product.title || 'Название товара'
-})
-
-// Получаем URL изображения (из imageUrl или image)
-const productImage = computed(() => {
-  return props.product.imageUrl || props.product.image || ''
-})
-
+// Текст кнопки
 const buttonText = computed(() => {
-  if (!authStore?.isAuthenticated) return 'Войдите, чтобы купить'
+  if (!authStore.isAuthenticated) return 'Войдите, чтобы купить'
+  if (authStore.userRole !== 'CUSTOMER') return 'Только для покупателей'
   if (isAdding.value) return 'Добавляется...'
-  if (isAdded.value || isInCart.value) return 'В корзине'
-  if (props.product.count === 0) return 'Нет в наличии'
+  if (isInCart.value) {
+    const qty = quantityInCart.value
+    return qty > 0 ? `В корзине (${qty})` : 'В корзине'
+  }
+  if (!isAvailable.value) return 'Нет в наличии'
   return 'В корзину'
 })
 
-const addToCart = (event) => {
-  // предотвращаем открытие деталей при клике на кнопку корзины
-  if (event && event.stopPropagation) event.stopPropagation()
-  if (!authStore?.isAuthenticated) {
+// Добавление в корзину
+const addToCart = async () => {
+  // Если не авторизован - перенаправляем на логин
+  if (!authStore.isAuthenticated) {
     router.push('/login')
     return
   }
-  if (isAdding.value || isAdded.value || isInCart.value || props.product.count === 0) return
+
+  // Если не покупатель - показываем сообщение
+  if (authStore.userRole !== 'CUSTOMER') {
+    alert('Корзина доступна только покупателям')
+    return
+  }
+
+  // Если товар недоступен
+  if (!isAvailable.value) {
+    alert('Товар временно недоступен')
+    return
+  }
+
+  // Если уже добавляется или уже в корзине
+  if (isAdding.value || isInCart.value) {
+    return
+  }
 
   isAdding.value = true
-  
-  // Сохраняем в корзину (для авторизованных пользователей контролируется бекенд/стором)
-  saveToGuestCart()
-  
-  // Имитация запроса на сервер
-  setTimeout(() => {
-    isAdding.value = false
-    isAdded.value = true
-    
-    // Отправляем событие родителю (Home.vue)
-    emits('add-to-cart', props.product.id)
-    
-    // Отправляем глобальное событие для обновления счетчика в Header
-    window.dispatchEvent(new CustomEvent('cart-updated'))
-    
-    // Сброс состояния через 2 секунды
-    setTimeout(() => {
-      isAdded.value = false
-      checkIfInCart() // Обновляем статус после сброса анимации
-    }, 2000)
-    
-    console.log('Товар добавлен в корзину:', props.product)
-  }, 800)
-}
 
-const openDetails = () => {
-  emits('open-details', props.product.id)
-}
-
-// Сохранение в гостевую корзину
-const saveToGuestCart = () => {
   try {
-    let guestCart = JSON.parse(localStorage.getItem('guestCart') || '[]')
+    // Используем хранилище корзины для добавления товара
+    const success = await cartStore.addToCart(props.product.id, 1)
     
-    // Проверяем, есть ли уже такой товар
-    const existingIndex = guestCart.findIndex(item => item.id === props.product.id)
-    
-    if (existingIndex !== -1) {
-      // Увеличиваем количество
-      guestCart[existingIndex].quantity += 1
+    if (success) {
+      isAdded.value = true
+      
+      // Отправляем событие родителю
+      emit('add-to-cart', props.product)
+      
+      // Показываем успех 2 секунды, затем сбрасываем анимацию
+      setTimeout(() => {
+        isAdded.value = false
+      }, 2000)
     } else {
-      // Добавляем новый товар
-      guestCart.push({
-        id: props.product.id,
-        name: productName.value,
-        title: productName.value,
-        price: props.product.price,
-        quantity: 1,
-        image: productImage.value,
-        imageUrl: productImage.value,
-        platform: 'Steam ключ',
-        link: `/product/${props.product.id}`
-      })
+      alert('Не удалось добавить товар в корзину')
     }
-    
-    localStorage.setItem('guestCart', JSON.stringify(guestCart))
-    
-  } catch (e) {
-    console.error('Ошибка сохранения в корзину:', e)
+  } catch (error) {
+    console.error('Ошибка добавления в корзину:', error)
+    alert('Ошибка при добавлении в корзину')
+  } finally {
+    isAdding.value = false
   }
 }
 
-// Слушаем события обновления корзины
-const handleCartUpdate = () => {
-  checkIfInCart()
+// Открытие деталей товара
+const openDetails = () => {
+  emit('open-details', props.product.id)
 }
 
-// При монтировании проверяем статус товара в корзине
-onMounted(() => {
-  checkIfInCart()
-  
-  // Слушаем события обновления корзины
-  window.addEventListener('cart-updated', handleCartUpdate)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('cart-updated', handleCartUpdate)
-})
+// Следим за изменениями в корзине
+watch(
+  () => cartStore.items,
+  () => {
+    // При изменении корзины обновляем состояние
+    if (isInCart.value && isAdded.value) {
+      isAdded.value = false
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
-/* ВАШИ СТИЛИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ */
 .product-card {
   width: 240px;
   height: 400px;
@@ -196,6 +187,7 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .product-card:hover {
@@ -289,6 +281,7 @@ onUnmounted(() => {
 .add-to-cart-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+  background: #666;
 }
 
 .add-to-cart-btn.adding {
@@ -354,6 +347,8 @@ onUnmounted(() => {
   70% { transform: scale(1.2); }
   100% { transform: scale(1); opacity: 1; }
 }
+
+/* Адаптивные стили остаются без изменений */
 
 @media (max-width: 1600px) {
   .product-card {

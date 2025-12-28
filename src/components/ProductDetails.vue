@@ -15,29 +15,29 @@
         <div v-else-if="currentGame" class="product-details-content">
           <!-- Левая колонка -->
           <div class="left-section">
-            <!-- Карточка игры -->
+            <!-- Карточка игры (ИСПРАВЛЕНО: используем imageUrl) -->
             <div class="vertical-photo-wrapper card-size">
               <img 
-                v-if="currentGame.cardImage || currentGame.imageUrl || currentGame.image" 
-                :src="currentGame.cardImage || currentGame.imageUrl || currentGame.image" 
-                :alt="currentGame.title || currentGame.name" 
+                v-if="currentGame.imageUrl" 
+                :src="currentGame.imageUrl" 
+                :alt="currentGame.title" 
                 class="vertical-photo" 
               />
               <div v-else class="photo-placeholder">
                 <div class="no-image-text">Нет изображения</div>
               </div>
             </div>
-            <p class="photo-label">Изображение карточки товара</p>
+            <p class="photo-label">Изображение игры</p>
           </div>
 
           <!-- Центральная колонка -->
           <div class="center-section">
-            <!-- Основное изображение -->
+            <!-- Основное изображение (ИСПРАВЛЕНО: используем imageUrl) -->
             <div class="product-image-wrapper">
               <img 
-                v-if="currentGame.imageUrl || currentGame.image" 
-                :src="currentGame.imageUrl || currentGame.image" 
-                :alt="currentGame.title || currentGame.name" 
+                v-if="currentGame.imageUrl" 
+                :src="currentGame.imageUrl" 
+                :alt="currentGame.title" 
                 class="product-image" 
               />
               <div v-else class="photo-placeholder large">
@@ -49,7 +49,7 @@
             <div class="product-description-box">
               <label class="field-label">Описание:</label>
               <div class="description-text">
-                {{ currentGame.description || localDescription || 'Нет описания' }}
+                {{ currentGame.description || 'Нет описания' }}
               </div>
             </div>
 
@@ -66,13 +66,13 @@
           <div class="right-section">
             <!-- Название -->
             <div class="product-title-display">
-              {{ currentGame.title || currentGame.name || 'Название не указано' }}
+              {{ currentGame.title || 'Название не указано' }}
             </div>
 
-            <!-- Информация о продавце -->
+            <!-- Информация о продавце (ИСПРАВЛЕНО: нет в API, показываем разработчика) -->
             <div class="seller-info">
-              <img src="/src/assets/icons/saleman.svg" alt="Продавец" class="seller-icon" />
-              <span class="seller-name">{{ currentGame.seller?.username || 'Продавец' }}</span>
+              <img src="/src/assets/icons/saleman.svg" alt="Разработчик" class="seller-icon" />
+              <span class="seller-name">{{ currentGame.developerTitle || 'Разработчик не указан' }}</span>
             </div>
 
             <!-- Технические характеристики -->
@@ -87,7 +87,7 @@
                 <div class="spec-value">{{ currentGame.publisherTitle || 'Не указан' }}</div>
               </div>
               
-              <!-- Жанры -->
+              <!-- Жанры (ИСПРАВЛЕНО: используем правильную структуру) -->
               <div class="spec-row">
                 <div class="spec-label">Жанры:</div>
                 <div class="spec-value">
@@ -102,22 +102,16 @@
                 </div>
               </div>
               
-              <!-- Платформа - всегда PC -->
+              <!-- Ключей в наличии -->
               <div class="spec-row">
-                <div class="spec-label">Платформа:</div>
-                <div class="spec-value">PC</div>
-              </div>
-              
-              <!-- Язык интерфейса -->
-              <div class="spec-row">
-                <div class="spec-label">Язык интерфейса:</div>
-                  <div class="spec-value">{{ displayLanguage(currentGame) }}</div>
+                <div class="spec-label">Ключей:</div>
+                <div class="spec-value">{{ currentGame.count || 0 }} шт.</div>
               </div>
 
               <!-- Дата добавления -->
               <div class="spec-row">
                 <div class="spec-label">Дата добавления:</div>
-                <div class="spec-value">{{ formatDate(currentGame.createdAt || currentGame.created_at) }}</div>
+                <div class="spec-value">{{ formatDate(currentGame.createdAt) }}</div>
               </div>
             </div>
 
@@ -126,18 +120,20 @@
               <button 
                 class="btn btn-primary" 
                 @click="addToCart"
-                :disabled="!currentGame || cartLoading"
+                :disabled="!currentGame || cartLoading || !authStore?.isAuthenticated"
               >
                 <span v-if="cartLoading">Добавление...</span>
+                <span v-else-if="!authStore?.isAuthenticated">Войдите для покупки</span>
                 <span v-else>В корзину</span>
               </button>
               
               <button 
                 class="btn btn-success" 
                 @click="buyNow"
-                :disabled="!currentGame"
+                :disabled="!currentGame || !authStore?.isAuthenticated"
               >
-                Купить сейчас
+                <span v-if="!authStore?.isAuthenticated">Войдите для покупки</span>
+                <span v-else>Купить сейчас</span>
               </button>
             </div>
           </div>
@@ -154,10 +150,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import genresList from '../data/genres.js'
+import genresList from '../data/genres.js' // ИСПРАВЛЕНО: правильный путь
 import { useAuthStore } from '../stores/auth.js'
 import { useRouter } from 'vue-router'
-import { games, cart, orders } from '../services/api.js'
+import { games, cart } from '../services/api.js'
 
 const props = defineProps({
   gameId: {
@@ -184,8 +180,6 @@ const game = ref(null)
 const loading = ref(false)
 const error = ref('')
 const cartLoading = ref(false)
-const localDescription = ref('')
-const localLanguage = ref('')
 
 // Форматирование цены
 const formatPrice = (price) => {
@@ -196,74 +190,46 @@ const formatPrice = (price) => {
 const formatDate = (dateString) => {
   if (!dateString) return 'Не указана'
   try {
-    return new Date(dateString).toLocaleDateString('ru-RU')
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
   } catch {
     return 'Не указана'
   }
 }
 
-// Форматирование жанров
+// Форматирование жанров (ИСПРАВЛЕНО согласно GameResponse)
 const formattedGenres = computed(() => {
   if (!currentGame.value) return []
 
-  const genres = currentGame.value.genres || currentGame.value.tags || currentGame.value.categories || []
+  const genres = currentGame.value.genres || []
   const labels = genres.map(g => {
-    if (typeof g === 'string') {
-      const found = genresList.find(x => x.id === g || x.label === g)
-      return found ? found.label : null
-    } else if (g && g.title) {
-      const found = genresList.find(x => x.id === g.title || x.label === g.title)
-      return found ? found.label : null
-    } else if (g && g.id) {
-      const found = genresList.find(x => x.id === g.id || x.label === g.id)
-      return found ? found.label : null
-    }
-    return null
+    // В GameResponse: GenreResponse имеет поле Title
+    const genreTitle = g.Title || g.title
+    if (!genreTitle) return null
+    
+    // Ищем в списке жанров по ID (например 'FPS') или label
+    const found = genresList.find(x => x.id === genreTitle || x.label === genreTitle)
+    return found ? found.label : genreTitle
   }).filter(Boolean)
 
-  // remove duplicates while preserving order
+  // Удаляем дубликаты
   const seen = new Set()
   const unique = []
-  for (const l of labels) {
-    if (!seen.has(l)) {
-      seen.add(l)
-      unique.push(l)
+  for (const label of labels) {
+    if (!seen.has(label)) {
+      seen.add(label)
+      unique.push(label)
     }
   }
   return unique
 })
 
-// Показ языка интерфейса — принимает объект игры и поддерживает string или массив
-const displayLanguage = (game) => {
-  if (!game) return localLanguage.value || 'Не указан'
-  const lang = game.language || game.Language || game.lang
-  if (!lang) return localLanguage.value || 'Не указан'
-  if (Array.isArray(lang)) return lang.join(', ')
-  if (typeof lang === 'string') return lang
-  try { return String(lang) } catch { return localLanguage.value || 'Не указан' }
-}
-
 // Текущая игра
 const currentGame = computed(() => props.game || game.value)
-
-function normalizeGameObject(g) {
-  if (!g) return g
-  const copy = JSON.parse(JSON.stringify(g))
-  // normalize genres: accept ['ID','ID'] or [{title:'ID'}] or [{id:'ID'}]
-  const rawGenres = copy.genres || copy.tags || copy.categories || []
-  copy.genres = rawGenres.map(item => {
-    if (!item) return null
-    if (typeof item === 'string') return { title: item }
-    if (item.title) return { title: item.title }
-    if (item.id) return { title: item.id }
-    return null
-  }).filter(Boolean)
-
-  // normalize language key
-  copy.language = copy.language || copy.Language || copy.lang || ''
-
-  return copy
-}
 
 // Загрузка игры
 const loadGame = async () => {
@@ -279,12 +245,18 @@ const loadGame = async () => {
     error.value = ''
 
     const resp = await games.getById(props.gameId)
-    if (!resp || resp.statusCode) {
-      if (resp && resp.statusCode === 404) throw new Error('Игра не найдена')
-      throw new Error(resp?.message || 'Ошибка загрузки')
+    
+    // Проверяем на ошибку (если есть statusCode - это ошибка)
+    if (resp && resp.statusCode) {
+      if (resp.statusCode === 404) throw new Error('Игра не найдена')
+      throw new Error(resp.message || 'Ошибка загрузки игры')
     }
 
-    game.value = normalizeGameObject(resp)
+    if (!resp) {
+      throw new Error('Игра не найдена')
+    }
+
+    game.value = resp
 
   } catch (err) {
     error.value = err.message
@@ -294,28 +266,17 @@ const loadGame = async () => {
   }
 }
 
-// Загружаем описание из products.json и возможный запасной язык
-const fetchLocalDescription = async (id) => {
-  try {
-    const resp = await games.getById(id)
-    if (resp && !resp.statusCode) {
-      if (resp.description) localDescription.value = resp.description
-      if (resp.language && !currentGame.value?.language && !currentGame.value?.Language && !currentGame.value?.lang) {
-        localLanguage.value = resp.language
-      }
-      return
-    }
-  } catch (err) {
-    console.warn('fetchLocalDescription error', err)
-  }
-  localDescription.value = ''
-}
-
-// Добавление в корзину
+// Добавление в корзину (ИСПРАВЛЕНО: проверка авторизации)
 const addToCart = async () => {
   if (!authStore?.isAuthenticated) {
     router.push('/login')
     emit('close')
+    return
+  }
+
+  // Проверяем роль (только покупатель может добавлять в корзину)
+  if (authStore.userRole !== 'CUSTOMER') {
+    alert('Только покупатели могут добавлять товары в корзину')
     return
   }
 
@@ -326,20 +287,33 @@ const addToCart = async () => {
 
   try {
     const resp = await cart.addItem(g.id, 1)
-    if (!resp || resp.statusCode) {
-      alert(resp?.message || 'Ошибка добавления в корзину')
-    } else {
-      emit('add-to-cart', g.id)
-      alert('Товар добавлен в корзину!')
+    
+    // Проверяем ответ на ошибку
+    if (resp && resp.statusCode) {
+      alert(resp.message || 'Ошибка добавления в корзину')
+      return
     }
+
+    emit('add-to-cart', g.id)
+    
+    // Показываем уведомление
+    if (resp && resp.cartItems) {
+      const item = resp.cartItems.find(item => item.gameId === g.id)
+      const count = item ? item.quantity : 1
+      alert(`Игра "${g.title}" добавлена в корзину! (${count} шт.)`)
+    } else {
+      alert(`Игра "${g.title}" добавлена в корзину!`)
+    }
+
   } catch (err) {
-    alert('Ошибка сети')
+    console.error('Ошибка добавления в корзину:', err)
+    alert('Ошибка сети при добавлении в корзину')
   } finally {
     cartLoading.value = false
   }
 }
 
-// Покупка сейчас
+// Покупка сейчас (упрощенная версия - добавляет в корзину и переходит к оформлению)
 const buyNow = async () => {
   if (!authStore?.isAuthenticated) {
     router.push('/login')
@@ -347,20 +321,33 @@ const buyNow = async () => {
     return
   }
 
+  // Проверяем роль
+  if (authStore.userRole !== 'CUSTOMER') {
+    alert('Только покупатели могут совершать покупки')
+    return
+  }
+
   const g = currentGame.value
   if (!g) return
 
   try {
-    const resp = await orders.createOrder([{ gameId: g.id, quantity: 1 }])
-    if (!resp || resp.statusCode) {
-      alert(resp?.message || 'Ошибка оформления заказа')
+    // Добавляем в корзину
+    const resp = await cart.addItem(g.id, 1)
+    
+    if (resp && resp.statusCode) {
+      alert(resp.message || 'Ошибка добавления в корзину')
       return
     }
-    emit('buy-now', resp)
+
+    emit('buy-now', g.id)
     emit('close')
-    router.push(`/order/${resp.id}`)
+    
+    // Переходим в корзину
+    router.push('/cart')
+
   } catch (err) {
-    alert('Ошибка сети')
+    console.error('Ошибка покупки:', err)
+    alert('Ошибка сети при оформлении заказа')
   }
 }
 
@@ -380,6 +367,7 @@ const handleEscape = (e) => {
 const handleWheel = (e) => {
   const modalContent = e.currentTarget
   modalContent.scrollTop += e.deltaY
+  e.preventDefault()
 }
 
 // Обработчик touch-событий для мобильных устройств
@@ -421,19 +409,7 @@ watch(() => props.gameId, () => {
 // Если родитель передаёт готовый объект игры
 watch(() => props.game, (g) => {
   if (g) {
-    game.value = normalizeGameObject(g)
-    // if incoming game has language, set localLanguage so displayLanguage shows it
-    if (g.language || g.Language || g.lang) localLanguage.value = g.language || g.Language || g.lang
-  }
-})
-
-// Загружаем описание при изменении текущей игры
-watch(currentGame, (cg) => {
-  if (cg && (cg.id || cg._id)) {
-    const id = cg.id || cg._id
-    fetchLocalDescription(id)
-  } else {
-    localDescription.value = ''
+    game.value = g
   }
 })
 </script>
@@ -466,13 +442,13 @@ watch(currentGame, (cg) => {
   box-sizing: border-box;
   position: relative;
   font-family: 'Montserrat Alternates', sans-serif;
-  overflow-y: scroll; /* Изменено на scroll */
+  overflow-y: scroll;
   /* Скрываем скроллбар */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE и Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Скрываем скроллбар для WebKit браузеров (Chrome, Safari) */
+/* Скрываем скроллбар для WebKit браузеров */
 .modal-content::-webkit-scrollbar {
   display: none;
   width: 0;
@@ -623,22 +599,23 @@ watch(currentGame, (cg) => {
   color: #666;
   font-family: 'Montserrat Alternates', sans-serif;
   font-size: 20px;
+  font-weight: 600;
 }
 
 .description-text {
   width: 100%;
   min-height: 115px;
+  max-height: 200px;
   padding: 12px;
   border-radius: 15px;
   background: #E6E6E6;
-  font-size: 20px;
+  font-size: 18px;
   font-family: 'Montserrat Alternates', sans-serif;
   box-sizing: border-box;
   color: #000;
   line-height: 1.6;
   overflow-y: auto;
   word-wrap: break-word;
-  /* Скрываем скроллбар внутри текста описания */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -717,7 +694,7 @@ watch(currentGame, (cg) => {
 }
 
 .seller-name {
-  font-size: 24px;
+  font-size: 20px;
   color: #454545;
   font-weight: 500;
 }
@@ -788,6 +765,7 @@ watch(currentGame, (cg) => {
 .no-genres-text {
   color: #999;
   font-style: italic;
+  font-size: 14px;
 }
 
 /* Кнопки действий */
@@ -810,7 +788,10 @@ watch(currentGame, (cg) => {
   font-family: 'Montserrat Alternates', sans-serif;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
@@ -826,8 +807,11 @@ watch(currentGame, (cg) => {
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  background: #cccccc;
+  color: #666666;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-success {
@@ -843,11 +827,14 @@ watch(currentGame, (cg) => {
 }
 
 .btn-success:disabled {
-  opacity: 0.6;
+  background: #cccccc;
+  color: #666666;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-.btn:active {
+.btn:active:not(:disabled) {
   transform: translateY(3px) scale(0.995);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
 }
@@ -861,7 +848,15 @@ watch(currentGame, (cg) => {
   font-family: 'Montserrat Alternates', sans-serif;
 }
 
-/* Адаптивность - исправлены горизонтальные полосы */
+.error {
+  color: #FA541C;
+}
+
+.not-found {
+  color: #999;
+}
+
+/* Адаптивность */
 @media (max-width: 1600px) {
   .product-details-content {
     gap: 30px;
@@ -991,7 +986,16 @@ watch(currentGame, (cg) => {
   }
   
   .seller-name {
-    font-size: 20px;
+    font-size: 18px;
+  }
+  
+  .field-label {
+    font-size: 18px;
+  }
+  
+  .description-text {
+    font-size: 16px;
+    min-height: 100px;
   }
 }
 
@@ -1038,8 +1042,8 @@ watch(currentGame, (cg) => {
   }
   
   .description-text {
-    font-size: 16px;
-    min-height: 100px;
+    font-size: 14px;
+    min-height: 80px;
   }
 }
 </style>

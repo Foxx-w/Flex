@@ -22,12 +22,25 @@
       </div>
 
       <div class="header-right">
-        <router-link to="/cart" class="action-btn cart-btn">
-          <svg class="icon cart-icon" viewBox="59 55 28 29" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M87 67.5001V68.5001C87 69.3285 86.4777 70.0001 85.8333 70.0001H85.4444L84.1751 81.4243C84.0109 82.9022 83.0264 84 81.8652 84H64.1348C62.9736 84 61.9891 82.9022 61.8249 81.4243L60.5556 70.0001H60.1667C59.5223 70.0001 59 69.3285 59 68.5001V67.5001C59 66.6717 59.5223 66.0001 60.1667 66.0001H63.4402L68.6309 56.8239C69.1362 55.9306 70.109 55.7331 70.8038 56.3827C71.4986 57.0324 71.6523 58.2832 71.1469 59.1765L67.2871 66.0001H78.7129L74.8531 59.1765C74.3477 58.2832 74.5014 57.0324 75.1962 56.3827C75.8909 55.733 76.8639 55.9305 77.3692 56.8238L82.5598 66.0001H85.8333C86.4777 66.0001 87 66.6717 87 67.5001ZM74.1667 78.5V71.5001C74.1667 70.6716 73.6443 70.0001 73 70.0001C72.3557 70.0001 71.8333 70.6716 71.8333 71.5001V78.5C71.8333 79.3285 72.3557 80 73 80C73.6443 80 74.1667 79.3285 74.1667 78.5ZM79.6111 78.5V71.5001C79.6111 70.6716 79.0888 70.0001 78.4444 70.0001C77.8001 70.0001 77.2778 70.6716 77.2778 71.5001V78.5C77.2778 79.3285 77.8001 80 78.4444 80C79.0888 80 79.6111 79.3285 79.6111 78.5ZM68.7222 78.5V71.5001C68.7222 70.6716 68.1999 70.0001 67.5556 70.0001C66.9112 70.0001 66.3889 70.6716 66.3889 71.5001V78.5C66.3889 79.3285 66.9112 80 67.5556 80C68.1999 80 68.7222 79.3285 68.7222 78.5Z" fill="currentColor"/>
-          </svg>
+        <!-- Корзина - только для покупателей -->
+        <router-link 
+          v-if="authStore.isCustomer" 
+          to="/cart" 
+          class="action-btn cart-btn"
+          :class="{ 'cart-has-items': cartStore.totalItems > 0 }"
+        >
+          <div class="cart-icon-wrapper">
+            <svg class="icon cart-icon" viewBox="59 55 28 29" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M87 67.5001V68.5001C87 69.3285 86.4777 70.0001 85.8333 70.0001H85.4444L84.1751 81.4243C84.0109 82.9022 83.0264 84 81.8652 84H64.1348C62.9736 84 61.9891 82.9022 61.8249 81.4243L60.5556 70.0001H60.1667C59.5223 70.0001 59 69.3285 59 68.5001V67.5001C59 66.6717 59.5223 66.0001 60.1667 66.0001H63.4402L68.6309 56.8239C69.1362 55.9306 70.109 55.7331 70.8038 56.3827C71.4986 57.0324 71.6523 58.2832 71.1469 59.1765L67.2871 66.0001H78.7129L74.8531 59.1765C74.3477 58.2832 74.5014 57.0324 75.1962 56.3827C75.8909 55.733 76.8639 55.9305 77.3692 56.8238L82.5598 66.0001H85.8333C86.4777 66.0001 87 66.6717 87 67.5001ZM74.1667 78.5V71.5001C74.1667 70.6716 73.6443 70.0001 73 70.0001C72.3557 70.0001 71.8333 70.6716 71.8333 71.5001V78.5C71.8333 79.3285 72.3557 80 73 80C73.6443 80 74.1667 79.3285 74.1667 78.5ZM79.6111 78.5V71.5001C79.6111 70.6716 79.0888 70.0001 78.4444 70.0001C77.8001 70.0001 77.2778 70.6716 77.2778 71.5001V78.5C77.2778 79.3285 77.8001 80 78.4444 80C79.0888 80 79.6111 79.3285 79.6111 78.5ZM68.7222 78.5V71.5001C68.7222 70.6716 68.1999 70.0001 67.5556 70.0001C66.9112 70.0001 66.3889 70.6716 66.3889 71.5001V78.5C66.3889 79.3285 66.9112 80 67.5556 80C68.1999 80 68.7222 79.3285 68.7222 78.5Z" fill="currentColor"/>
+            </svg>
+            <!-- Бейдж с количеством товаров -->
+            <span v-if="cartStore.totalItems > 0" class="cart-badge">
+              {{ cartStore.totalItems > 99 ? '99+' : cartStore.totalItems }}
+            </span>
+          </div>
           <span class="action-label">Корзина</span>
         </router-link>
+        
         <button type="button" class="action-btn user-btn" @click="toggleUserMenu()">
           <svg class="icon user-icon" viewBox="107 56 26 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M120 70C121.97 70 123.86 69.2625 125.253 67.9497C126.646 66.637 127.429 64.8565 127.429 63C127.429 61.1435 126.646 59.363 125.253 58.0503C123.86 56.7375 121.97 56 120 56C118.03 56 116.14 56.7375 114.747 58.0503C113.354 59.363 112.571 61.1435 112.571 63C112.571 64.8565 113.354 66.637 114.747 67.9497C116.14 69.2625 118.03 70 120 70ZM117.348 72.625C111.631 72.625 107 76.9891 107 82.3758C107 83.2727 107.772 84 108.724 84H131.276C132.228 84 133 83.2727 133 82.3758C133 76.9891 128.369 72.625 122.652 72.625H117.348Z" fill="currentColor"/>
@@ -42,9 +55,18 @@
 <script setup>
 import { showGuestMenu, showUserMenu, showGenresMenu, showSellerMenu } from '../stores/ui'
 import { useAuthStore } from '../stores/auth'
-import { computed } from 'vue'
+import { useCartStore } from '../stores/cart'
+import { computed, onMounted } from 'vue'
 
 const authStore = useAuthStore()
+const cartStore = useCartStore()
+
+// Инициализируем корзину при загрузке хедера
+onMounted(() => {
+  if (authStore.isCustomer && cartStore.items.length === 0) {
+    cartStore.fetchCart()
+  }
+})
 
 function toggleUserMenu(){
   // if not authenticated -> guest menu
@@ -75,12 +97,24 @@ function toggleGenresMenu(){
 
 const userLabel = computed(() => {
   if (!authStore.isAuthenticated) return 'Войти'
-  return authStore.user?.username || 'Аккаунт'
+  // Используем username из auth store
+  const username = authStore.user?.username || authStore.user?.Username
+  if (username && username.length > 10) {
+    return username.substring(0, 10) + '...'
+  }
+  return username || 'Аккаунт'
 })
+
+// Для отладки - можно удалить
+const debugCart = computed(() => ({
+  totalItems: cartStore.totalItems,
+  items: cartStore.items,
+  isLoading: cartStore.isLoading
+}))
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;600&display=swap');
+/* Существующие стили оставляем без изменений, добавляем новые */
 
 .site-header {
   width: 100%;
@@ -209,6 +243,7 @@ const userLabel = computed(() => {
   font-family: 'Montserrat Alternates', sans-serif;
   text-decoration: none;
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .action-label {
@@ -261,6 +296,76 @@ const userLabel = computed(() => {
 .action-btn:hover .icon,
 .genres-btn:hover .icon {
   transform: translateY(-2px);
+}
+
+/* Новые стили для корзины */
+.cart-icon-wrapper {
+  position: relative;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ff4757;
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  font-family: 'Montserrat Alternates', sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: badgePulse 2s infinite;
+}
+
+.cart-has-items .cart-icon {
+  animation: cartPulse 3s infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes cartPulse {
+  0%, 100% { 
+    transform: rotate(0deg); 
+    color: #ffffff;
+  }
+  25% { 
+    transform: rotate(-10deg); 
+    color: #A53DFF;
+  }
+  75% { 
+    transform: rotate(10deg); 
+    color: #A53DFF;
+  }
+}
+
+/* Адаптивные стили для корзины */
+@media (max-width: 1440px) {
+  .cart-badge {
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    top: -4px;
+    right: -4px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .cart-badge {
+    min-width: 16px;
+    height: 16px;
+    font-size: 10px;
+    top: -3px;
+    right: -3px;
+  }
 }
 
 /* Плавная адаптация для больших экранов */

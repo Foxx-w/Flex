@@ -26,7 +26,7 @@
               <div class="no-image-text">Нет изображения</div>
             </div>
             
-            <!-- Менюшка загрузки для карточки -->
+            <!-- Менюшка загрузки для карточки (УБРАТЬ - нет в API) -->
             <div class="image-upload-menu">
               <label class="upload-menu-btn">
                 <span>Выберите фото</span>
@@ -40,11 +40,12 @@
             </div>
           </div>
 
-          <p class="photo-label">Изображение карточки товара</p>
+          <p class="photo-label">Изображение игры</p>
 
+          <!-- Файл с ключами (только при создании) -->
           <div class="photo-upload-placeholder" v-if="!isEditMode">
             <label class="upload-label">
-              Файл с ключами (JSON):
+              Файл с ключами (JSON) - обязателен:
               <div class="file-upload-btn">
                 <span>Выбрать файл</span>
                 <input 
@@ -52,17 +53,21 @@
                   accept=".json" 
                   @change="handleKeysFileChange"
                   class="file-input-hidden"
+                  required
                 />
               </div>
             </label>
             <div v-if="keysFile" class="file-name">
               {{ keysFile.name }}
             </div>
+            <div v-else class="file-warning">
+              *Обязательное поле для создания игры
+            </div>
           </div>
 
           <div class="seller-note-plain">
             Примечание для продавцов:<br />
-            Выставляя товар, вы обязаны заполнить все поля товара, в противном случае ваш товар будет удален!
+            Все поля обязательны для заполнения!
           </div>
           
           <!-- Количество в наличии -->
@@ -71,7 +76,7 @@
             <div class="stock-count">{{ form.count }}</div>
             <div class="add-keys-section" v-if="isEditMode">
               <label class="upload-label small">
-                Добавить ключи:
+                Добавить ключи (JSON):
                 <div class="file-upload-btn small">
                   <span>Выбрать файл</span>
                   <input 
@@ -101,7 +106,6 @@
               alt="Текущее изображение" 
               class="product-image" 
             />
-            <!-- Вернули фон -->
             <div v-else class="photo-placeholder large">
               <div class="no-image-text">Нет изображения</div>
             </div>
@@ -115,6 +119,7 @@
                   accept="image/*" 
                   @change="handleMainImageChange"
                   class="file-input-hidden"
+                  :required="!isEditMode"
                 />
               </label>
             </div>
@@ -122,12 +127,13 @@
           
           <!-- Описание -->
           <div class="product-description-box">
-            <label class="field-label">Описание:</label>
+            <label class="field-label">Описание (до 1000 символов):</label>
             <textarea 
               v-model="form.description" 
               class="product-description-input" 
               rows="4"
               :maxlength="1000"
+              placeholder="Описание игры..."
             ></textarea>
             <div class="char-counter">{{ form.description?.length || 0 }}/1000</div>
           </div>
@@ -139,11 +145,11 @@
               type="number" 
               v-model.number="form.price" 
               class="price-input" 
-              min="100" 
-              step="1"
+              min="0.1" 
+              step="0.01"
               required
             />
-            <div class="price-hint">Минимальная цена: 100 ₽</div>
+            <div class="price-hint">Минимальная цена: 0.1 ₽</div>
           </div>
         </div>
 
@@ -152,6 +158,7 @@
           <input 
             v-model="form.title" 
             class="product-title-input" 
+            placeholder="Название игры"
             required
             minlength="2"
             maxlength="100"
@@ -170,6 +177,7 @@
               <input 
                 class="spec-input" 
                 v-model="form.developerTitle" 
+                placeholder="CD Projekt Red"
                 required
                 minlength="2"
                 maxlength="100"
@@ -181,6 +189,7 @@
               <input 
                 class="spec-input" 
                 v-model="form.publisherTitle" 
+                placeholder="CD Projekt"
                 required
                 minlength="2"
                 maxlength="100"
@@ -199,57 +208,15 @@
               </button>
             </div>
             
-            <!-- Скрываем отображение выбранных жанров: выбор виден в GenresMenu -->
-            
-            <!-- Платформа - всегда PC -->
-            <div class="spec-row">
-              <div class="spec-label">Платформа:</div>
-              <div class="platform-text">PC</div>
-            </div>
-            
-            <!-- Язык интерфейса с улучшенным меню -->
-            <div class="spec-row spec-row-language">
-              <div class="spec-label">Язык интерфейса:</div>
-              <div class="language-select-container">
-                <button type="button" class="language-select-btn" @click="toggleLanguageMenu">
-                  <span v-if="selectedLanguages.length === 0">Выбрать язык</span>
-                  <span v-else class="selected-count">{{ selectedLanguages.length }} выбрано</span>
-                </button>
-                
-                <!-- Выбранные языки -->
-                <div class="selected-languages-tags" v-if="selectedLanguages.length > 0">
-                  <div v-for="(lang, i) in selectedLanguages" :key="lang" class="selected-language-tag">
-                    {{ lang }}
-                    <button type="button" class="remove-language" @click="toggleLanguage(lang)">×</button>
-                  </div>
-                </div>
-                
-                <!-- Меню выбора языков -->
-                <div v-if="showLanguageMenu" class="language-menu">
-                  <div class="language-menu-header">
-                    <span class="language-menu-title">Выберите языки</span>
-                    <button type="button" class="language-menu-close" @click="showLanguageMenu = false">×</button>
-                  </div>
-                  <div class="language-options">
-                    <div v-for="opt in languageOptions" :key="opt" class="language-option">
-                      <input 
-                        type="checkbox" 
-                        :id="`lang-${opt}`" 
-                        :checked="selectedLanguages.includes(opt)" 
-                        @change="toggleLanguage(opt)" 
-                        class="language-checkbox"
-                      />
-                      <label :for="`lang-${opt}`" class="language-label">{{ opt }}</label>
-                    </div>
-                  </div>
-                  <div class="language-menu-footer">
-                    <button type="button" class="language-apply-btn" @click="showLanguageMenu = false">
-                      Готово
-                    </button>
-                  </div>
-                </div>
+            <!-- Выбранные жанры -->
+            <div v-if="selectedGenres.length > 0" class="selected-genres">
+              <div v-for="(genre, index) in selectedGenres" :key="genre.id" class="selected-genre-tag">
+                {{ genre.title }}
+                <button type="button" class="remove-genre" @click="removeSelectedGenre(index)">×</button>
               </div>
             </div>
+            
+            <!-- УБИРАЕМ платформу и язык - их нет в API -->
           </div>
 
           <!-- Сообщения об ошибках/успехе -->
@@ -268,7 +235,6 @@
               <span v-else>{{ isEditMode ? 'Обновить игру' : 'Создать игру' }}</span>
             </button>
             
-            <!-- Кнопка отменить теперь закрывает окно без изменений -->
             <button type="button" class="btn btn-cancel" @click="handleCancel" :disabled="submitting">
               Отменить
             </button>
@@ -283,13 +249,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import GenresMenu from './GenresMenu.vue'
-import genresList from '../data/genres.js'
-import { useRoute, useRouter } from 'vue-router'
+import genresList from '../data/genres.js' // ИСПРАВЛЕННЫЙ ПУТЬ
 import { useAuthStore } from '../stores/auth.js'
-import { games } from '../services/api'
+import { games } from '../services/api' // ✅ правильный импорт
 
-const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore?.() || {
   isAuthenticated: false,
   userRole: null,
@@ -303,33 +266,29 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['saved', 'save', 'canceled', 'cancel', 'close'])
+const emit = defineEmits(['saved', 'close'])
 
 // Режим редактирования или создания
 const isEditMode = computed(() => props.gameId !== null)
 
-// Состояние формы
+// Состояние формы (ТОЛЬКО поля из DTO)
 const form = reactive({
   title: '',
   developerTitle: '',
   publisherTitle: '',
-  price: 100, // Минимальная цена 100 рублей
+  price: 0.1, // Минимальная цена по API
   description: '',
   genres: [],
-  language: '',
-  platform: 'PC', // Платформа всегда PC
   imageUrl: ''
 })
 
 // Файлы
 const mainImageFile = ref(null)
-const cardImageFile = ref(null)
 const keysFile = ref(null)
 const additionalKeysFile = ref(null)
 
 // Превью изображений
 const previewMainImage = ref('')
-const previewCardImage = ref('')
 
 // UI состояние
 const loading = ref(false)
@@ -353,29 +312,39 @@ const loadGame = async () => {
   try {
     console.log('Загрузка игры ID:', props.gameId)
     const gameResp = await games.getById(props.gameId)
-    if (!gameResp || gameResp.statusCode) throw new Error(gameResp?.message || 'Не удалось загрузить игру')
+    
+    // Проверяем на ошибку (если есть statusCode - это ошибка)
+    if (gameResp && gameResp.statusCode) {
+      throw new Error(gameResp.message || 'Не удалось загрузить игру')
+    }
+    
+    if (!gameResp) {
+      throw new Error('Игра не найдена')
+    }
 
+    // Заполняем форму (только нужные поля)
     Object.assign(form, {
-      title: gameResp.title,
-      developerTitle: gameResp.developerTitle,
-      publisherTitle: gameResp.publisherTitle,
-      price: gameResp.price,
+      title: gameResp.title || '',
+      developerTitle: gameResp.developerTitle || '',
+      publisherTitle: gameResp.publisherTitle || '',
+      price: gameResp.price || 0.1,
       description: gameResp.description || '',
-      genres: gameResp.genres || [],
-      language: gameResp.language || '',
-      platform: gameResp.platform || 'PC',
-      imageUrl: gameResp.imageUrl,
-      count: gameResp.count
+      imageUrl: gameResp.imageUrl || '',
+      count: gameResp.count || 0
     })
 
-    // normalize genres into {id, title}
+    // Обрабатываем жанры
     selectedGenres.value = (gameResp.genres || []).map(g => {
-      const key = g.title
-      const found = genresList.find(x => x.id === key || x.label === key)
-      return { id: found ? found.id : key, title: found ? found.label : key }
+      const title = g.Title || g.title || ''
+      const found = genresList.find(x => x.id === title || x.label === title)
+      return { 
+        id: found ? found.id : title, 
+        title: found ? found.label : title 
+      }
     })
-    // язык
-    selectedLanguages.value = (gameResp.language || '').split(',').map(s=>s.trim()).filter(Boolean)
+    
+    // Сохраняем для отправки (используем ID жанров)
+    form.genres = selectedGenres.value.map(g => ({ title: g.id }))
     
   } catch (error) {
     console.error('Ошибка загрузки:', error)
@@ -409,28 +378,7 @@ const handleMainImageChange = (event) => {
   reader.readAsDataURL(file)
 }
 
-const handleCardImageChange = (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-  
-  if (!file.type.startsWith('image/')) {
-    errorMessage.value = 'Пожалуйста, выберите изображение'
-    return
-  }
-  
-  if (file.size > 5 * 1024 * 1024) {
-    errorMessage.value = 'Изображение должно быть меньше 5MB'
-    return
-  }
-  
-  cardImageFile.value = file
-  
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    previewCardImage.value = e.target.result
-  }
-  reader.readAsDataURL(file)
-}
+// УБИРАЕМ handleCardImageChange - нет в API
 
 const handleKeysFileChange = (event) => {
   const file = event.target.files[0]
@@ -458,36 +406,13 @@ const handleAdditionalKeysChange = (event) => {
 
 // Управление жанрами
 const showGenreMenu = ref(false)
+
 const openGenreSelector = () => {
   showGenreMenu.value = true
 }
- 
-// Языки интерфейса
-const languageOptions = ['Русский', 'Английский']
-const showLanguageMenu = ref(false)
-const selectedLanguages = ref([])
-
-const toggleLanguageMenu = () => {
-  showLanguageMenu.value = !showLanguageMenu.value
-}
-
-const toggleLanguage = (lang) => {
-  const idx = selectedLanguages.value.indexOf(lang)
-  if (idx === -1) selectedLanguages.value.push(lang)
-  else selectedLanguages.value.splice(idx, 1)
-  form.language = selectedLanguages.value.join(', ')
-}
 
 const initialSelectedIds = computed(() => {
-  // возвращаем id для каждого выбранного жанра; поддерживаем объекты {id,title} или старые {title}
-  return selectedGenres.value.map(sg => {
-    if (!sg) return null
-    if (sg.id) return sg.id
-    const key = sg.title
-    if (!key) return null
-    const found = genresList.find(g => g.id === key || g.label === key)
-    return found ? found.id : key
-  }).filter(Boolean)
+  return selectedGenres.value.map(sg => sg.id).filter(Boolean)
 })
 
 const onGenresApply = (selectedIds) => {
@@ -496,7 +421,8 @@ const onGenresApply = (selectedIds) => {
     const found = genresList.find(x => x.id === id)
     return { id, title: found ? found.label : id }
   })
-  // store ids in form.genres so backend/filtering uses ids
+  
+  // Сохраняем ID жанров для отправки
   form.genres = selectedIds.map(id => ({ title: id }))
   showGenreMenu.value = false
 }
@@ -506,7 +432,7 @@ const removeSelectedGenre = (index) => {
   form.genres.splice(index, 1)
 }
 
-// Отправка формы
+// Отправка формы (ИСПРАВЛЕННАЯ согласно API)
 const handleSubmit = async () => {
   if (!validateForm()) return
   
@@ -517,147 +443,160 @@ const handleSubmit = async () => {
   try {
     const formData = new FormData()
     
+    // 1. Обязательные поля из GameWithKeysRequest/GameRequest
     formData.append('Title', form.title)
     formData.append('DeveloperTitle', form.developerTitle)
     formData.append('PublisherTitle', form.publisherTitle)
     formData.append('Price', form.price.toString())
-    formData.append('Description', form.description || '')
-    formData.append('Platform', 'PC') // Всегда PC
-    // Языки интерфейса — отправляем список как строку
-    formData.append('Language', selectedLanguages.value.join(', '))
     
-    // Жанры — отправляем id (genre.id) если есть, иначе genre.title
+    // 2. Опциональное поле
+    if (form.description) {
+      formData.append('Description', form.description)
+    }
+    
+    // 3. Жанры (отправляем ID как Title)
     selectedGenres.value.forEach((genre, index) => {
-      const val = genre.id || genre.title
-      formData.append(`Genres[${index}].Title`, val)
+      // Отправляем ID жанра (например 'FPS')
+      formData.append(`Genres[${index}].Title`, genre.id)
     })
     
+    // 4. Изображение (обязательно для создания, опционально для обновления)
     if (mainImageFile.value) {
       formData.append('Image', mainImageFile.value)
+    } else if (!isEditMode.value) {
+      throw new Error('Изображение обязательно для создания игры')
     }
     
-    if (cardImageFile.value) {
-      formData.append('CardImage', cardImageFile.value)
-    }
-    // Для локального мок-режима добавляем base64-превью, чтобы сохранить изображение в памяти
-    if (previewMainImage.value) {
-      formData.append('ImageData', previewMainImage.value)
-    }
-    if (previewCardImage.value) {
-      formData.append('CardImageData', previewCardImage.value)
-    }
-    
-    // Не требуем файл с ключами для тестовой локальной разработки — добавляем только если он есть
-    if (!isEditMode.value && keysFile.value) {
+    // 5. Ключи (только для создания)
+    if (!isEditMode.value) {
+      if (!keysFile.value) {
+        throw new Error('Файл с ключами обязателен для создания игры')
+      }
       formData.append('Keys', keysFile.value)
     }
     
-    const url = isEditMode.value 
-      ? `/api/games/${props.gameId}`
-      : '/api/games'
-    
-    const method = isEditMode.value ? 'PUT' : 'POST'
-    
-    console.log('Отправка формы:', {
-      url,
-      method,
-      title: form.title,
-      genres: selectedGenres.value,
-      platform: 'PC'
-    })
-    
-    // Для локальной разработки используем тот же код, что и для API: вызываем методы `games.create/update`.
+    // 6. Отправляем через сервис
     const savedGame = isEditMode.value
       ? await games.update(props.gameId, formData)
       : await games.create(formData)
 
-    if (!savedGame || savedGame.statusCode) {
-      throw new Error(savedGame?.message || 'Ошибка сохранения')
+    // 7. Проверяем ответ (если есть statusCode - ошибка)
+    if (savedGame && savedGame.statusCode) {
+      throw new Error(savedGame.message || savedGame.Message || 'Ошибка сохранения')
+    }
+    
+    if (!savedGame) {
+      throw new Error('Пустой ответ от сервера')
     }
 
+    // 8. Дополнительные ключи (если есть)
     if (isEditMode.value && additionalKeysFile.value) {
-      await addAdditionalKeys(savedGame.id)
+      const keysFormData = new FormData()
+      keysFormData.append('Keys', additionalKeysFile.value)
+      
+      const keysResp = await games.addKeys(savedGame.id, keysFormData)
+      if (keysResp && keysResp.statusCode) {
+        console.warn('Не удалось добавить ключи:', keysResp.message)
+        // Не прерываем успешное сохранение, только логируем
+      }
     }
 
+    // 9. Успех
     successMessage.value = isEditMode.value
       ? 'Игра успешно обновлена!'
       : 'Игра успешно создана!'
 
+    // 10. Закрываем через 1.5 секунды
     setTimeout(() => {
       emit('saved', savedGame)
-      emit('save', savedGame)
       emit('close')
-      emit('cancel')
-    }, 2000)
+    }, 1500)
     
   } catch (error) {
-    console.error('Ошибка отправки:', error)
-    errorMessage.value = error.message
+    console.error('Ошибка сохранения игры:', error)
+    errorMessage.value = error.message || 'Неизвестная ошибка'
   } finally {
     submitting.value = false
   }
 }
 
-// Добавление дополнительных ключей
-const addAdditionalKeys = async (gameId) => {
-  const keysFormData = new FormData()
-  keysFormData.append('Keys', additionalKeysFile.value)
-
-  const resp = await games.addKeys(gameId, keysFormData)
-  if (!resp || resp.statusCode) {
-    throw new Error(resp?.message || 'Не удалось добавить ключи')
-  }
-}
-
-// Валидация формы
+// Валидация формы (согласно DTO)
 const validateForm = () => {
   errorMessage.value = ''
   
+  // Title: 2-100 символов
   if (!form.title || form.title.length < 2) {
     errorMessage.value = 'Название должно быть не менее 2 символов'
     return false
   }
+  if (form.title.length > 100) {
+    errorMessage.value = 'Название должно быть не более 100 символов'
+    return false
+  }
   
+  // DeveloperTitle: 2-100 символов
   if (!form.developerTitle || form.developerTitle.length < 2) {
-    errorMessage.value = 'Название разработчика должно быть не менее 2 символов'
+    errorMessage.value = 'Разработчик должен быть не менее 2 символов'
+    return false
+  }
+  if (form.developerTitle.length > 100) {
+    errorMessage.value = 'Разработчик должен быть не более 100 символов'
     return false
   }
   
+  // PublisherTitle: 2-100 символов
   if (!form.publisherTitle || form.publisherTitle.length < 2) {
-    errorMessage.value = 'Название издателя должно быть не менее 2 символов'
+    errorMessage.value = 'Издатель должен быть не менее 2 символов'
+    return false
+  }
+  if (form.publisherTitle.length > 100) {
+    errorMessage.value = 'Издатель должен быть не более 100 символов'
     return false
   }
   
-  if (form.price < 100) { // Минимальная цена 100 рублей
-    errorMessage.value = 'Цена должна быть не менее 100 ₽'
+  // Price: от 0.1
+  if (form.price < 0.1) {
+    errorMessage.value = 'Цена должна быть не менее 0.1 ₽'
     return false
   }
   
+  // Description: до 1000 символов
+  if (form.description && form.description.length > 1000) {
+    errorMessage.value = 'Описание должно быть не более 1000 символов'
+    return false
+  }
+  
+  // Genres: хотя бы один
   if (selectedGenres.value.length === 0) {
     errorMessage.value = 'Добавьте хотя бы один жанр'
     return false
   }
   
+  // Изображение (для создания)
   if (!isEditMode.value && !mainImageFile.value) {
-    errorMessage.value = 'Загрузите основное изображение'
+    errorMessage.value = 'Изображение обязательно для создания игры'
     return false
   }
   
-  // при тестовой локальной разработке файл с ключами не обязателен
+  // Ключи (для создания)
+  if (!isEditMode.value && !keysFile.value) {
+    errorMessage.value = 'Файл с ключами обязателен для создания игры'
+    return false
+  }
   
   return true
 }
 
-// Отмена - просто закрываем окно
+// Отмена
 const handleCancel = () => {
   emit('close')
-  emit('cancel')
 }
 
-// Проверка авторизации при монтировании
+// Проверка авторизации
 const checkAuth = () => {
   if (!authStore.isAuthenticated || authStore.userRole !== 'SELLER') {
     console.warn('Требуется авторизация продавца')
+    errorMessage.value = 'Требуется авторизация продавца'
     return false
   }
   return true
@@ -665,9 +604,7 @@ const checkAuth = () => {
 
 // Инициализация
 onMounted(() => {
-  // Временно отключаем проверку для тестирования
-  // if (!checkAuth()) return
-  
+  if (!checkAuth()) return
   loadGame()
 })
 
@@ -700,7 +637,6 @@ watch(() => props.gameId, () => {
   overflow-x: hidden;
   position: relative;
 }
-
 
 /* Основные стили формы */
 .product-details {
@@ -737,13 +673,13 @@ watch(() => props.gameId, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #E6E6E6; /* Вернули фон */
+  background: #E6E6E6;
   z-index: 1;
   pointer-events: none;
 }
 
 .photo-placeholder.large {
-  background: #E6E6E6; /* Вернули фон для большого изображения */
+  background: #E6E6E6;
 }
 
 .no-image-text {
@@ -803,6 +739,13 @@ watch(() => props.gameId, () => {
   margin-top: 4px;
   word-break: break-all;
   font-family: 'Montserrat Alternates', sans-serif;
+}
+
+.file-warning {
+  font-size: 12px;
+  color: #FA541C;
+  margin-top: 4px;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .stock-info {
@@ -885,20 +828,6 @@ watch(() => props.gameId, () => {
 
 .genre-select-btn:hover {
   background: #8B1FD9;
-}
-
-/* Текст платформы */
-.platform-text {
-  width: 220px;
-  flex: 0 0 220px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #E6E6E6;
-  font-size: 16px;
-  font-family: 'Montserrat Alternates', sans-serif;
-  box-sizing: border-box;
-  color: #000;
-  text-align: center;
 }
 
 /* Стили для выбранных жанров */
@@ -986,7 +915,7 @@ watch(() => props.gameId, () => {
 .vertical-photo-wrapper.card-size {
   width: 280px;
   height: 450px;
-  background: transparent; /* Сделали прозрачным, т.к. фон в placeholder */
+  background: transparent;
   border-radius: 30px;
   overflow: hidden;
   display: flex;
@@ -1036,7 +965,7 @@ watch(() => props.gameId, () => {
   width: 100%;
   height: 428px;
   max-height: 50vh;
-  background: transparent; /* Сделали прозрачным, т.к. фон в placeholder */
+  background: transparent;
   border-radius: 30px;
   overflow: hidden;
   position: relative;
@@ -1094,7 +1023,6 @@ watch(() => props.gameId, () => {
   border: none;
   font-family: 'Montserrat Alternates', sans-serif;
   box-sizing: border-box;
-  /* Убираем стрелки в браузерах */
   appearance: textfield;
   -moz-appearance: textfield;
 }
@@ -1129,6 +1057,10 @@ watch(() => props.gameId, () => {
   font-weight: bold;
   border: none;
   padding: 0 20px;
+}
+
+.product-title-input::placeholder {
+  color: rgba(165, 61, 255, 0.5);
 }
 
 .seller-info { 
@@ -1171,7 +1103,6 @@ watch(() => props.gameId, () => {
   text-align:left 
 }
 
-/* Убираем placeholder из всех полей */
 .spec-input {
   width:220px; 
   flex: 0 0 220px; 
@@ -1186,187 +1117,7 @@ watch(() => props.gameId, () => {
 }
 
 .spec-input::placeholder {
-  color: transparent;
-}
-
-/* Специальные стили для строки с языками */
-.spec-row-language {
-  position: relative;
-  align-items: flex-start;
-}
-
-.language-select-container {
-  width: 220px;
-  flex: 0 0 220px;
-  position: relative;
-}
-
-.language-select-btn {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #A53DFF;
-  color: white;
-  border: none;
-  font-size: 16px;
-  font-family: 'Montserrat Alternates', sans-serif;
-  cursor: pointer;
-  transition: background 0.3s;
-  text-align: center;
-}
-
-.language-select-btn:hover {
-  background: #8B1FD9;
-}
-
-.selected-count {
-  font-weight: bold;
-}
-
-.selected-languages-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-  width: 100%;
-}
-
-.selected-language-tag {
-  background: #A53DFF;
-  color: white;
-  padding: 4px 10px;
-  border-radius: 16px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-family: 'Montserrat Alternates', sans-serif;
-}
-
-.remove-language {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Montserrat Alternates', sans-serif;
-}
-
-.remove-language:hover {
-  color: #ffcccc;
-}
-
-/* Меню выбора языков */
-.language-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  background: #EFEFEF;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1400;
-  margin-top: 4px;
-  min-width: 180px;
-  overflow: hidden;
-}
-
-.language-menu-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  background: #E6E6E6;
-  border-bottom: 1px solid #ddd;
-}
-
-.language-menu-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  font-family: 'Montserrat Alternates', sans-serif;
-}
-
-.language-menu-close {
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.language-menu-close:hover {
-  color: #333;
-}
-
-.language-options {
-  padding: 8px 0;
-  max-height: 160px;
-  overflow-y: auto;
-}
-
-.language-option {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  transition: background 0.2s;
-}
-
-.language-option:hover {
-  background: #E6E6E6;
-}
-
-.language-checkbox {
-  margin: 0;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.language-label {
-  margin-left: 8px;
-  font-size: 14px;
-  color: #333;
-  cursor: pointer;
-  font-family: 'Montserrat Alternates', sans-serif;
-  user-select: none;
-}
-
-.language-menu-footer {
-  padding: 8px 12px;
-  border-top: 1px solid #ddd;
-  background: #E6E6E6;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.language-apply-btn {
-  padding: 6px 16px;
-  background: #A53DFF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: 'Montserrat Alternates', sans-serif;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.language-apply-btn:hover {
-  background: #8B1FD9;
+  color: rgba(0, 0, 0, 0.3);
 }
 
 .buttons-section { 
@@ -1451,9 +1202,7 @@ watch(() => props.gameId, () => {
   }
   
   .spec-input,
-  .genre-select-btn,
-  .platform-text,
-  .language-select-container {
+  .genre-select-btn {
     width: 180px;
     flex: 0 0 180px;
   }
@@ -1503,11 +1252,6 @@ watch(() => props.gameId, () => {
     flex-wrap: wrap;
   }
   
-  .language-select-container {
-    width: 100%;
-    flex: none;
-  }
-  
   .buttons-section {
     margin-top: 30px;
   }
@@ -1528,10 +1272,7 @@ watch(() => props.gameId, () => {
   }
   
   .spec-input,
-  .spec-select,
-  .genre-select-btn,
-  .platform-text,
-  .language-select-container {
+  .genre-select-btn {
     width: 100%;
     flex: none;
   }
@@ -1569,14 +1310,13 @@ watch(() => props.gameId, () => {
     font-size: 12px;
   }
   
-  .language-menu {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90%;
-    max-width: 300px;
-    z-index: 2000;
+  .selected-genres {
+    gap: 6px;
+  }
+  
+  .selected-genre-tag {
+    font-size: 13px;
+    padding: 5px 10px;
   }
 }
 
@@ -1620,16 +1360,14 @@ watch(() => props.gameId, () => {
   }
   
   .spec-input,
-  .genre-select-btn,
-  .platform-text,
-  .language-select-btn {
+  .genre-select-btn {
     font-size: 14px;
     padding: 10px;
   }
   
-  .selected-language-tag {
+  .selected-genre-tag {
     font-size: 12px;
-    padding: 3px 8px;
+    padding: 4px 8px;
   }
 }
 
@@ -1652,16 +1390,19 @@ watch(() => props.gameId, () => {
   background: #8B1FD9;
 }
 
-/* Скрываем скроллбар в меню языков */
-.language-options::-webkit-scrollbar {
-  width: 4px;
+/* Placeholder стили для полей ввода */
+.product-title-input::placeholder,
+.spec-input::placeholder,
+.product-description-input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+  font-family: 'Montserrat Alternates', sans-serif;
+  opacity: 1;
+  transition: opacity 0.2s;
 }
 
-.language-options::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-.language-options::-webkit-scrollbar-thumb {
-  background: #A53DFF;
+.product-title-input:focus::placeholder,
+.spec-input:focus::placeholder,
+.product-description-input:focus::placeholder {
+  opacity: 0.5;
 }
 </style>

@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { auth, cart, games, genres as genresApi, orders } from '../services/api'
+import { 
+  auth, 
+  cart, 
+  games as gamesApi, // ПЕРЕИМЕНОВАЛИ импорт
+  genres as genresApi, 
+  orders 
+} from '../services/api'
 
 export const useAppStore = defineStore('app', () => {
   // User state
@@ -18,7 +24,7 @@ export const useAppStore = defineStore('app', () => {
   )
 
   // Games state
-  const games = ref([])
+  const gamesList = ref([]) // ПЕРЕИМЕНОВАЛИ переменную
   const currentGame = ref(null)
   const sellerGames = ref([])
   const genres = ref([])
@@ -78,6 +84,8 @@ export const useAppStore = defineStore('app', () => {
       user.value = null
       userRole.value = null
       cartItems.value = []
+      gamesList.value = [] // Используем переименованную переменную
+      sellerGames.value = []
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -124,24 +132,44 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // Games methods
+  // Games methods (ИСПРАВЛЕНО: используем gamesApi вместо games)
   const loadGames = async (filters = {}, page = 1) => {
     try {
-      const response = await games.getAll(
-        filters.minPrice,
-        filters.maxPrice,
-        filters.gameTitle,
-        filters.genres,
-        page,
-        pagination.value.pageSize
-      )
+      // Формируем параметры запроса
+      const params = new URLSearchParams()
+      
+      if (filters.minPrice !== undefined && filters.minPrice !== null) {
+        params.append('MinPrice', filters.minPrice.toString())
+      }
+      
+      if (filters.maxPrice !== undefined && filters.maxPrice !== null) {
+        params.append('MaxPrice', filters.maxPrice.toString())
+      }
+      
+      if (filters.gameTitle) {
+        params.append('GameTitle', filters.gameTitle)
+      }
+      
+      if (filters.genres && filters.genres.length > 0) {
+        filters.genres.forEach(genre => {
+          params.append('Genres', genre)
+        })
+      }
+      
+      params.append('Page', page.toString())
+      params.append('PageSize', pagination.value.pageSize.toString())
+      
+      const queryString = params.toString() ? `?${params.toString()}` : ''
+      
+      const response = await gamesApi.getAll(queryString)
+      
       if (response && !response.statusCode) {
-        games.value = response.content || []
+        gamesList.value = response.content || []
         pagination.value = {
-          page: response.pageNumber,
-          pageSize: response.pageSize,
-          totalPages: response.totalPages,
-          totalElements: response.totalElements
+          page: response.pageNumber || page,
+          pageSize: response.pageSize || pagination.value.pageSize,
+          totalPages: response.totalPages || 0,
+          totalElements: response.totalElements || 0
         }
         return { success: true }
       }
@@ -153,7 +181,7 @@ export const useAppStore = defineStore('app', () => {
 
   const loadSellerGames = async (page = 1) => {
     try {
-      const response = await games.getMySeller(page, pagination.value.pageSize)
+      const response = await gamesApi.getMyGames(page, pagination.value.pageSize)
       if (response && !response.statusCode) {
         sellerGames.value = response.content || []
         return { success: true }
@@ -166,8 +194,10 @@ export const useAppStore = defineStore('app', () => {
 
   const createGame = async (formData) => {
     try {
-      const response = await games.create(formData)
+      const response = await gamesApi.create(formData)
       if (response && !response.statusCode) {
+        // Добавляем созданную игру в список продавца
+        sellerGames.value = [response, ...sellerGames.value]
         return { success: true, data: response }
       }
       return { success: false, error: response?.message }
@@ -178,8 +208,13 @@ export const useAppStore = defineStore('app', () => {
 
   const updateGame = async (id, formData) => {
     try {
-      const response = await games.update(id, formData)
+      const response = await gamesApi.update(id, formData)
       if (response && !response.statusCode) {
+        // Обновляем игру в списке продавца
+        const index = sellerGames.value.findIndex(g => g.id === id)
+        if (index !== -1) {
+          sellerGames.value[index] = response
+        }
         return { success: true, data: response }
       }
       return { success: false, error: response?.message }
@@ -190,7 +225,7 @@ export const useAppStore = defineStore('app', () => {
 
   const deleteGame = async (id) => {
     try {
-      const response = await games.delete(id)
+      const response = await gamesApi.delete(id)
       if (!response.statusCode || response.statusCode === 200) {
         sellerGames.value = sellerGames.value.filter(g => g.id !== id)
         return { success: true }
@@ -204,7 +239,7 @@ export const useAppStore = defineStore('app', () => {
   // Orders methods
   const loadOrders = async (page = 1) => {
     try {
-      const response = await orders.getOrders(page, pagination.value.pageSize)
+      const response = await orders.getAll(page, pagination.value.pageSize)
       if (response && !response.statusCode) {
         return { success: true, data: response }
       }
@@ -216,7 +251,7 @@ export const useAppStore = defineStore('app', () => {
 
   const createOrder = async (orderItems) => {
     try {
-      const response = await orders.createOrder(orderItems)
+      const response = await orders.create(orderItems)
       if (response && !response.statusCode) {
         cartItems.value = []
         return { success: true, data: response }
@@ -241,6 +276,20 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Получить игру по ID
+  const getGameById = async (id) => {
+    try {
+      const response = await gamesApi.getById(id)
+      if (response && !response.statusCode) {
+        currentGame.value = response
+        return { success: true, data: response }
+      }
+      return { success: false, error: response?.message }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
   return {
     // User
     user,
@@ -258,8 +307,8 @@ export const useAppStore = defineStore('app', () => {
     addToCart,
     removeFromCart,
 
-    // Games
-    games,
+    // Games (ИСПРАВЛЕНО: возвращаем переименованные переменные)
+    games: gamesList, // Экспортируем как games, но внутри это gamesList
     currentGame,
     sellerGames,
     genres,
@@ -268,6 +317,7 @@ export const useAppStore = defineStore('app', () => {
     createGame,
     updateGame,
     deleteGame,
+    getGameById, // Добавили новый метод
 
     // Orders
     loadOrders,
