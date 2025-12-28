@@ -51,9 +51,8 @@ function applySelection(){
 }
 
 function dismiss(){
-  // закрываем без применения
-  emits('update:visible', false)
-  emits('close')
+  // при закрытии (клик вне или крестик) применяем текущий выбор — удобнее для UX
+  applySelection()
 }
 
 function positionMenu(){

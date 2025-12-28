@@ -11,17 +11,7 @@
     "count": 10,
     "developerTitle": "CD Projekt Red",
     "publisherTitle": "CD Projekt",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "BUILD_SIM"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TPS" }, { "title": "BUILD_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-01-01T00:00:00"
@@ -38,17 +28,7 @@
     "count": 8,
     "developerTitle": "CD Projekt Red",
     "publisherTitle": "CD Projekt",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SCI_FI"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TPS" }, { "title": "SCI_FI" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-02-01T00:00:00"
@@ -65,17 +45,7 @@
     "count": 5,
     "developerTitle": "FromSoftware",
     "publisherTitle": "Bandai Namco",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TPS" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-03-01T00:00:00"
@@ -92,14 +62,7 @@
     "count": 12,
     "developerTitle": "Rockstar Games",
     "publisherTitle": "Rockstar Games",
-    "genres": [
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "TPS" }, { "title": "TURN_BASED" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-04-01T00:00:00"
@@ -116,14 +79,7 @@
     "count": 3,
     "developerTitle": "Larian Studios",
     "publisherTitle": "Larian Studios",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TURN_BASED" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-05-01T00:00:00"
@@ -140,17 +96,7 @@
     "count": 999,
     "developerTitle": "Valve",
     "publisherTitle": "Valve",
-    "genres": [
-      {
-        "title": "FPS"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SPORTS_SIM"
-      }
-    ],
+    "genres": [{ "title": "FPS" }, { "title": "TPS" }, { "title": "SPORTS_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-06-01T00:00:00"
@@ -167,14 +113,7 @@
     "count": 999,
     "developerTitle": "Valve",
     "publisherTitle": "Valve",
-    "genres": [
-      {
-        "title": "SPORTS_SIM"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "SPORTS_SIM" }, { "title": "TURN_BASED" }, { "title": "SPORTS_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-07-01T00:00:00"
@@ -191,17 +130,7 @@
     "count": 999,
     "developerTitle": "Respawn Entertainment",
     "publisherTitle": "Electronic Arts",
-    "genres": [
-      {
-        "title": "SPORTS_SIM"
-      },
-      {
-        "title": "FPS"
-      },
-      {
-        "title": "TPS"
-      }
-    ],
+    "genres": [{ "title": "SPORTS_SIM" }, { "title": "FPS" }, { "title": "TPS" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-08-01T00:00:00"
@@ -218,17 +147,7 @@
     "count": 20,
     "developerTitle": "Rockstar North",
     "publisherTitle": "Rockstar Games",
-    "genres": [
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      },
-      {
-        "title": "BUILD_SIM"
-      }
-    ],
+    "genres": [{ "title": "TPS" }, { "title": "TURN_BASED" }, { "title": "BUILD_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-09-01T00:00:00"
@@ -245,14 +164,7 @@
     "count": 999,
     "developerTitle": "Maxis",
     "publisherTitle": "Electronic Arts",
-    "genres": [
-      {
-        "title": "BUILD_SIM"
-      },
-      {
-        "title": "HOBBY_SIM"
-      }
-    ],
+    "genres": [{ "title": "BUILD_SIM" }, { "title": "HOBBY_SIM" }, { "title": "BUILD_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-10-01T00:00:00"
@@ -269,17 +181,7 @@
     "count": 7,
     "developerTitle": "Sledgehammer Games",
     "publisherTitle": "Activision",
-    "genres": [
-      {
-        "title": "FPS"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "FPS" }, { "title": "TPS" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-11-01T00:00:00"
@@ -296,17 +198,7 @@
     "count": 9,
     "developerTitle": "Bethesda Game Studios",
     "publisherTitle": "Bethesda Softworks",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SCI_FI"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TPS" }, { "title": "SCI_FI" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2023-12-01T00:00:00"
@@ -323,14 +215,7 @@
     "count": 15,
     "developerTitle": "Playground Games",
     "publisherTitle": "Xbox Game Studios",
-    "genres": [
-      {
-        "title": "RACING"
-      },
-      {
-        "title": "BUILD_SIM"
-      }
-    ],
+    "genres": [{ "title": "RACING" }, { "title": "BUILD_SIM" }, { "title": "BUILD_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-01-01T00:00:00"
@@ -347,17 +232,7 @@
     "count": 6,
     "developerTitle": "Avalanche Software",
     "publisherTitle": "Warner Bros. Games",
-    "genres": [
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "TPS" }, { "title": "STR_TACT_RPG" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-02-01T00:00:00"
@@ -374,14 +249,7 @@
     "count": 11,
     "developerTitle": "Insomniac Games",
     "publisherTitle": "PlayStation PC LLC",
-    "genres": [
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "TPS" }, { "title": "TURN_BASED" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-03-01T00:00:00"
@@ -398,14 +266,7 @@
     "count": 8,
     "developerTitle": "Santa Monica Studio",
     "publisherTitle": "PlayStation PC LLC",
-    "genres": [
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "TURN_BASED"
-      }
-    ],
+    "genres": [{ "title": "TPS" }, { "title": "TURN_BASED" }, { "title": "TURN_BASED" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-04-01T00:00:00"
@@ -422,17 +283,7 @@
     "count": 4,
     "developerTitle": "Capcom",
     "publisherTitle": "Capcom",
-    "genres": [
-      {
-        "title": "HORROR"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SURVIVAL"
-      }
-    ],
+    "genres": [{ "title": "HORROR" }, { "title": "TPS" }, { "title": "SURVIVAL" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-05-01T00:00:00"
@@ -449,17 +300,7 @@
     "count": 7,
     "developerTitle": "Motive Studio",
     "publisherTitle": "Electronic Arts",
-    "genres": [
-      {
-        "title": "HORROR"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SCI_FI"
-      }
-    ],
+    "genres": [{ "title": "HORROR" }, { "title": "TPS" }, { "title": "SCI_FI" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-06-01T00:00:00"
@@ -476,17 +317,7 @@
     "count": 999,
     "developerTitle": "Rare",
     "publisherTitle": "Xbox Game Studios",
-    "genres": [
-      {
-        "title": "TURN_BASED"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "SPORTS_SIM"
-      }
-    ],
+    "genres": [{ "title": "TURN_BASED" }, { "title": "TPS" }, { "title": "SPORTS_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-07-01T00:00:00"
@@ -503,17 +334,7 @@
     "count": 14,
     "developerTitle": "Bethesda Game Studios",
     "publisherTitle": "Bethesda Softworks",
-    "genres": [
-      {
-        "title": "STR_TACT_RPG"
-      },
-      {
-        "title": "TPS"
-      },
-      {
-        "title": "BUILD_SIM"
-      }
-    ],
+    "genres": [{ "title": "STR_TACT_RPG" }, { "title": "TPS" }, { "title": "BUILD_SIM" }],
     "language": "Русский",
     "platform": "PC",
     "createdAt": "2024-08-01T00:00:00"

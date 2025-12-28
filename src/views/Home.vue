@@ -94,9 +94,9 @@
 
       <!-- Жанры: используем единый меню-компонент -->
       <div style="max-width:1200px;margin:18px auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <!-- Текст метки убран — меню жанров открывается через шапку -->
+        <!-- Текст метки убран — меню жанров открывается через шапку -->
         <!-- Убрано отображение выбранных тегов: используем чекбоксы в GenresMenu -->
-        <button v-if="selectedGenreIds.length" class="reset-filter-btn" @click="clearHomeGenres">×</button>
+        <!-- reset button removed as requested -->
       </div>
 
       <!-- Global GenresMenu is rendered in App.vue; header toggles `showGenresMenu` in the shared store. -->
@@ -206,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import genresList from '../data/genres.js'
 import { selectedGenreIds } from '../stores/ui'
 import SiteHeader from '../components/Header.vue'
@@ -232,6 +232,17 @@ const selectedProduct = ref(null)
 // Фильтр жанров (на главной) — используем общий стор
 // `selectedGenreIds` и `showGenresMenu` берутся из `src/stores/ui.js`
 const clearHomeGenres = () => { selectedGenreIds.value = [] }
+
+// Когда пользователь выбирает жанры через глобальное меню — включаем флаг фильтра
+watch(() => selectedGenreIds.value, (val) => {
+  if (Array.isArray(val) && val.length > 0) {
+    filterApplied.value = true
+    currentPage.value = 1
+  } else {
+    // если жанров нет — не считаем фильтр активным только по ним
+    // но не сбрасываем price-filter флаг
+  }
+})
 
 // Пагинация
 const currentPage = ref(1)

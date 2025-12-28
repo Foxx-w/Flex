@@ -145,7 +145,7 @@ export const cart = {
     fetch(`${API_BASE}/carts/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId, quantity }),
+      body: JSON.stringify({ GameId: gameId, Quantity: quantity }),
       credentials: 'include'
     }).then(r => r.json()),
 
@@ -153,7 +153,7 @@ export const cart = {
     fetch(`${API_BASE}/carts/items`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId, quantity }),
+      body: JSON.stringify({ GameId: gameId, Quantity: quantity }),
       credentials: 'include'
     }).then(r => r.json())
 }
@@ -166,10 +166,11 @@ export const orders = {
     }).then(r => r.json()),
 
   createOrder: (orderItems) =>
+    // Backend expects OrderRequest with OrderItems: List<OrderItemRequest>
     fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderItems }),
+      body: JSON.stringify({ OrderItems: (orderItems || []).map(it => ({ GameId: it.gameId ?? it.GameId ?? it.gameId, Quantity: it.quantity ?? it.Quantity ?? 1 })) }),
       credentials: 'include'
     }).then(r => r.json())
 }

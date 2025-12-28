@@ -1,4 +1,5 @@
 import products from './products.json'
+import genresList from '../genres.js'
 
 // Попытаемся загрузить сохранённые mock-данные из localStorage (для разработки)
 const STORAGE_KEY = 'mock_products_v1'
@@ -23,6 +24,9 @@ if (!games || games.length === 0) {
 
 // Уникальные id
 const ids = new Set()
+// Normalize loaded entries and dedupe
+games = games.map(normalizeGameEntry)
+
 games = games.filter(g => {
   if (!g || g.id == null) return false
   if (ids.has(g.id)) return false
@@ -34,6 +38,51 @@ let nextId = games.length ? Math.max(...games.map(g => g.id)) + 1 : 1
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj))
+}
+
+function normalizeGameEntry(g) {
+  if (!g) return g
+  const copy = clone(g)
+
+  // normalize genres into array of { title: ID }
+  const rawGenres = copy.genres || copy.tags || copy.categories || []
+  const normalized = []
+  for (const item of rawGenres) {
+    if (!item) continue
+    if (typeof item === 'string') {
+      // try to map label -> id
+      const found = genresList.find(x => x.id === item || x.label === item)
+      normalized.push({ title: found ? found.id : item })
+      continue
+    }
+    if (item.title) {
+      const found = genresList.find(x => x.id === item.title || x.label === item.title)
+      normalized.push({ title: found ? found.id : item.title })
+      continue
+    }
+    if (item.id) {
+      normalized.push({ title: item.id })
+      continue
+    }
+  }
+  // dedupe preserving order
+  const seen = new Set()
+  copy.genres = normalized.filter(x => {
+    if (!x || !x.title) return false
+    if (seen.has(x.title)) return false
+    seen.add(x.title)
+    return true
+  })
+
+  // normalize language to string (comma-separated if array)
+  if (Array.isArray(copy.language)) copy.language = copy.language.join(', ')
+  if (copy.Language && !copy.language) copy.language = copy.Language
+  if (!copy.language) copy.language = copy.lang || copy.Language || ''
+
+  // ensure createdAt
+  if (!copy.createdAt) copy.createdAt = new Date().toISOString()
+
+  return copy
 }
 
 export function getAll(minPrice, maxPrice, gameTitle, genres, page = 1, pageSize = 20) {
@@ -67,7 +116,8 @@ export function getById(id) {
 
 export function create(formData) {
   const payload = normalizeFormData(formData)
-  const newGame = { id: nextId++, createdAt: new Date().toISOString(), ...payload }
+  const normalized = normalizeGameEntry(payload)
+  const newGame = { id: nextId++, createdAt: new Date().toISOString(), ...normalized }
   games.push(newGame)
   persist()
   return Promise.resolve(clone(newGame))
@@ -75,9 +125,10 @@ export function create(formData) {
 
 export function update(id, formData) {
   const payload = normalizeFormData(formData)
+  const payloadNorm = normalizeGameEntry(payload)
   const idx = games.findIndex(x => String(x.id) === String(id))
   if (idx === -1) return Promise.resolve({ statusCode: 404, message: 'Not found' })
-  games[idx] = { ...games[idx], ...payload }
+  games[idx] = { ...games[idx], ...payloadNorm }
   persist()
   return Promise.resolve(clone(games[idx]))
 }
