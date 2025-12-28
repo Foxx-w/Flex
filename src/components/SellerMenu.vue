@@ -13,10 +13,10 @@
         <img src="/src/assets/icons/history.svg" alt="orders" class="menu-icon" />
         <span>Заказы</span>
       </router-link>
-      <router-link to="/seller/logout" class="menu-button" @click="close">
+      <button type="button" class="menu-button" @click="doLogout">
         <img src="/src/assets/icons/logout.svg" alt="logout" class="menu-icon" />
         <span>Выйти</span>
-      </router-link>
+      </button>
     </div>
   </div>
 </template>
@@ -32,6 +32,11 @@ const emits = defineEmits(['update:visible', 'close'])
 const menuStyle = ref({})
 const overlayStyle = ref({})
 const ignoreClicksUntil = ref(0)
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 function close(){
   const now = Date.now()
@@ -58,8 +63,8 @@ function positionMenu(){
     if(left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth
     if(left < 0) left = 0
     const headerRect = headerEl.getBoundingClientRect()
-    const overlayTop = headerRect.bottom
-    overlayStyle.value = { position: 'fixed', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1100 }
+    const overlayTop = Math.max(Math.round(headerRect.bottom + window.scrollY), 0)
+    overlayStyle.value = { position: 'absolute', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1100 }
     menuStyle.value = { position: 'absolute', width: menuWidth + 'px', height: menuHeight + 'px', top: '0px', left: left + 'px', zIndex: 1101 }
     return
   }
@@ -67,18 +72,18 @@ function positionMenu(){
   if(!anchor){
     const left = Math.max((window.innerWidth - menuWidth)/2, 0)
     const top = 164
-    overlayStyle.value = { position: 'fixed', left: 0, right: 0, top: top + 'px', pointerEvents: 'auto', zIndex: 900 }
+    overlayStyle.value = { position: 'absolute', left: 0, right: 0, top: Math.round(top + window.scrollY) + 'px', pointerEvents: 'auto', zIndex: 900 }
     menuStyle.value = { position: 'absolute', width: menuWidth + 'px', height: menuHeight + 'px', top: 0 + 'px', left: left + 'px' }
     return
   }
   const rect = anchor.getBoundingClientRect()
   const headerEl2 = document.querySelector('.site-header')
   const headerRect2 = headerEl2 ? headerEl2.getBoundingClientRect() : rect
-  const overlayTop = headerRect2.bottom
+  const overlayTop = Math.round(headerRect2.bottom + window.scrollY)
   let left = rect.left + (rect.width - menuWidth)/2
   if(left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth
   if(left < 0) left = 0
-  overlayStyle.value = { position: 'fixed', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1100 }
+  overlayStyle.value = { position: 'absolute', left: 0, right: 0, top: overlayTop + 'px', pointerEvents: 'auto', zIndex: 1100 }
   menuStyle.value = { position: 'absolute', width: menuWidth + 'px', height: menuHeight + 'px', top: '0px', left: left + 'px', zIndex: 1101 }
 }
 
@@ -94,6 +99,17 @@ watch(()=>props.visible, async (v)=>{
     menuStyle.value = {}
   }
 })
+
+async function doLogout(){
+  try{
+    await authStore.logout()
+  }catch(err){
+    console.error('seller logout error', err)
+  }
+  emits('update:visible', false)
+  emits('close')
+  router.push('/')
+}
 </script>
 
 <style scoped>

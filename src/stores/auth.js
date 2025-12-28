@@ -10,8 +10,14 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => user.value?.role)
   
   const login = async (credentials) => {
-    const { email, username, password, userRole } = credentials || {}
-    const data = await auth.login(email, username, password, userRole)
+    const cred = credentials || {}
+    const Email = cred.Email || cred.email || ''
+    const Username = cred.Username || cred.username || ''
+    const Password = cred.Password || cred.password || ''
+    const UserRole = cred.UserRole || cred.userRole || cred.role || ''
+
+    const payload = { Email, Username, Password, UserRole }
+    const data = await auth.login(payload)
 
     if (data && !data.statusCode) {
       user.value = data.user || data

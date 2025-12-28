@@ -31,6 +31,26 @@
 <script setup>
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
+import { useAuthStore } from '../stores/auth'
+import { useAppStore } from '../stores/app'
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const authStore = useAuthStore()
+const appStore = useAppStore()
+const router = useRouter()
+
+onMounted(async () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+  try {
+    await appStore.loadOrders(1)
+  } catch (e) {
+    console.error('Не удалось загрузить заказы:', e)
+  }
+})
 </script>
 
 <style scoped>

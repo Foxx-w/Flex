@@ -71,11 +71,16 @@ const handleRegister = async () => {
 
   isLoading.value = true
   try {
-    const resp = await auth.register(email.value, username.value, password.value, role.value)
+    const payload = {
+      Email: email.value,
+      Username: username.value,
+      Password: password.value,
+      UserRole: role.value
+    }
+    const resp = await auth.register(payload)
     if (!resp || resp.statusCode) {
       errorMessage.value = resp?.message || 'Ошибка регистрации'
     } else {
-      // Успех — перенаправим на страницу входа
       router.push('/login')
     }
   } catch (e) {

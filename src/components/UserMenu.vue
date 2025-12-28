@@ -9,20 +9,19 @@
         <img src="/src/assets/icons/history.svg" alt="orders" class="menu-icon" />
         <span>История покупок</span>
       </router-link>
-      <router-link to="/seller" class="menu-button" @click="close">
-        <img src="/src/assets/icons/product.svg" alt="seller" class="menu-icon" />
-        <span>Продавец</span>
-      </router-link>
-      <router-link to="/logout" class="menu-button" @click="close">
+      <!-- Seller link removed: sellers get their own menu -->
+      <button type="button" class="menu-button" @click="doLogout">
         <img src="/src/assets/icons/logout.svg" alt="logout" class="menu-icon" />
         <span>Выйти</span>
-      </router-link>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { defineProps, defineEmits, watch, ref, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   visible: { type: Boolean, default: false }
@@ -39,6 +38,20 @@ function close(){
   if(now < ignoreClicksUntil.value) return
   emits('update:visible', false)
   emits('close')
+}
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+async function doLogout(){
+  try{
+    await authStore.logout()
+  }catch(err){
+    console.error('logout error', err)
+  }
+  emits('update:visible', false)
+  emits('close')
+  router.push('/')
 }
 
 function positionMenu(){

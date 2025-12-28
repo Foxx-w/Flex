@@ -103,6 +103,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useAppStore } from '../stores/app'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import CheckBox from '../components/CheckBox.vue'
@@ -113,8 +115,9 @@ const allChecked = ref(false)
 const isOrdering = ref(false)
 const checkedItems = ref(new Set()) // Храним ID выбранных товаров
 
-// Симуляция статуса авторизации (в реальном приложении используйте store)
-const isLoggedIn = ref(false)
+const authStore = useAuthStore()
+const appStore = useAppStore()
+const isLoggedIn = computed(() => !!authStore.isAuthenticated)
 
 // Загрузка корзины из localStorage для гостей
 const loadGuestCart = () => {
@@ -147,7 +150,7 @@ const loadAuthStatus = () => {
 }
 
 // Инициализация корзины
-const cartItems = ref(loadGuestCart())
+const cartItems = ref([])
 
 // Наблюдатель для автосохранения корзины
 watch(cartItems, (newCart) => {
@@ -160,12 +163,29 @@ watch(() => cartItems.value.length, () => {
 })
 
 // Загрузка при монтировании
-onMounted(() => {
-  loadAuthStatus()
-  
+onMounted(async () => {
+  // Если не авторизован — перенаправляем на страницу входа
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+
+  // Загрузим корзину с бэкенда через app store
+  try {
+    const res = await appStore.loadCart()
+    if (res.success) {
+      cartItems.value = appStore.cartItems
+    } else {
+      cartItems.value = []
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки корзины:', e)
+    cartItems.value = []
+  }
+
   // Слушаем события обновления корзины
   window.addEventListener('add-to-cart', handleExternalAddToCart)
-  
+
   // Инициализируем состояние выбранных товаров
   updateAllCheckedState()
 })

@@ -28,11 +28,11 @@
           </svg>
           <span class="action-label">Корзина</span>
         </router-link>
-        <button type="button" class="action-btn user-btn" @click="toggleGuestMenu()">
+        <button type="button" class="action-btn user-btn" @click="toggleUserMenu()">
           <svg class="icon user-icon" viewBox="107 56 26 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M120 70C121.97 70 123.86 69.2625 125.253 67.9497C126.646 66.637 127.429 64.8565 127.429 63C127.429 61.1435 126.646 59.363 125.253 58.0503C123.86 56.7375 121.97 56 120 56C118.03 56 116.14 56.7375 114.747 58.0503C113.354 59.363 112.571 61.1435 112.571 63C112.571 64.8565 113.354 66.637 114.747 67.9497C116.14 69.2625 118.03 70 120 70ZM117.348 72.625C111.631 72.625 107 76.9891 107 82.3758C107 83.2727 107.772 84 108.724 84H131.276C132.228 84 133 83.2727 133 82.3758C133 76.9891 128.369 72.625 122.652 72.625H117.348Z" fill="currentColor"/>
           </svg>
-          <span class="action-label">Войти</span>
+          <span class="action-label">{{ userLabel }}</span>
         </button>
       </div>
     </div>
@@ -40,19 +40,43 @@
 </template>
 
 <script setup>
-import { showGuestMenu, showUserMenu, showGenresMenu } from '../stores/ui'
+import { showGuestMenu, showUserMenu, showGenresMenu, showSellerMenu } from '../stores/ui'
+import { useAuthStore } from '../stores/auth'
+import { computed } from 'vue'
 
-function toggleGuestMenu(){
-  showGuestMenu.value = !showGuestMenu.value
-}
+const authStore = useAuthStore()
 
 function toggleUserMenu(){
+  // if not authenticated -> guest menu
+  if (!authStore.isAuthenticated) {
+    showGuestMenu.value = !showGuestMenu.value
+    // ensure other menus closed
+    showUserMenu.value = false
+    showSellerMenu.value = false
+    return
+  }
+  // authenticated: check role
+  const role = authStore.userRole || authStore.user?.role
+  if (role === 'SELLER') {
+    showSellerMenu.value = !showSellerMenu.value
+    showUserMenu.value = false
+    showGuestMenu.value = false
+    return
+  }
+  // default: regular user
   showUserMenu.value = !showUserMenu.value
+  showGuestMenu.value = false
+  showSellerMenu.value = false
 }
 
 function toggleGenresMenu(){
   showGenresMenu.value = !showGenresMenu.value
 }
+
+const userLabel = computed(() => {
+  if (!authStore.isAuthenticated) return 'Войти'
+  return authStore.user?.username || 'Аккаунт'
+})
 </script>
 
 <style scoped>

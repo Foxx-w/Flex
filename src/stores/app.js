@@ -34,7 +34,13 @@ export const useAppStore = defineStore('app', () => {
   // Auth methods
   const register = async (email, username, password, role) => {
     try {
-      const response = await auth.register(email, username, password, role)
+      const payload = {
+        Email: email,
+        Username: username,
+        Password: password,
+        UserRole: role
+      }
+      const response = await auth.register(payload)
       if (response && !response.statusCode) {
         user.value = response
         userRole.value = role
@@ -48,7 +54,13 @@ export const useAppStore = defineStore('app', () => {
 
   const login = async (email, username, password, role) => {
     try {
-      const response = await auth.login(email, username, password, role)
+      const payload = {
+        Email: email || undefined,
+        Username: username || undefined,
+        Password: password,
+        UserRole: role || undefined
+      }
+      const response = await auth.login(payload)
       if (response && !response.statusCode) {
         user.value = response
         userRole.value = role

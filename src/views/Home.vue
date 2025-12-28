@@ -192,7 +192,6 @@
       <ProductDetails
         v-if="selectedProductId"
         :game-id="selectedProductId"
-        :game="selectedProduct"
         :is-visible="!!selectedProductId"
         @close="closeProductModal"
         @add-to-cart="handleAddToCartFromModal"
@@ -253,22 +252,19 @@ const products = ref([])
 
 // displayedInlineProduct removed — inline details disabled
 
-const loadProducts = async () => {
+const loadProducts = async (filters = {}) => {
   try {
-    const resp = await games.getAll(null, null, null, null, 1, 1000)
-    // resp может быть Page{content,...} или просто массив
+    const resp = await games.list({ Page: 1, PageSize: 1000, ...filters })
     if (Array.isArray(resp)) {
       products.value = resp
     } else if (resp && Array.isArray(resp.content)) {
       products.value = resp.content
-    } else if (resp && !resp.content && resp.id) {
-      // единичный объект
+    } else if (resp && resp.id) {
       products.value = [resp]
     } else {
       products.value = []
     }
-      // загрузка продуктов завершена
-    } catch (e) {
+  } catch (e) {
     console.error('Не удалось загрузить продукты:', e)
     products.value = []
   }
@@ -328,29 +324,32 @@ const handleInputBlur = (type) => {
 // Применение фильтра
 const applyFilter = async () => {
   if (isLoading.value) return
-  
+
   isLoading.value = true
-  
+
   minPrice.value = minPriceInput.value ? parseInt(minPriceInput.value) : null
   maxPrice.value = maxPriceInput.value ? parseInt(maxPriceInput.value) : null
-  
+
   if (minPrice.value !== null && maxPrice.value !== null && minPrice.value > maxPrice.value) {
     maxPrice.value = minPrice.value
     maxPriceInput.value = minPriceInput.value
   }
-  
+
   filterApplied.value = true
   currentPage.value = 1
-  
-  // Имитация загрузки данных
-  await new Promise(resolve => setTimeout(resolve, 600))
-  
-  isLoading.value = false
-  isSuccess.value = true
-  
-  setTimeout(() => {
-    isSuccess.value = false
-  }, 2000)
+
+  try {
+    const filters = {}
+    if (minPrice.value != null) filters.MinPrice = minPrice.value
+    if (maxPrice.value != null) filters.MaxPrice = maxPrice.value
+    if (selectedGenreIds.value && selectedGenreIds.value.length) filters.Genres = selectedGenreIds.value
+
+    await loadProducts(filters)
+  } catch (e) {
+    console.error('Ошибка фильтрации:', e)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 // Сброс фильтра
@@ -365,11 +364,8 @@ const resetFilter = () => {
 
 // Открытие модалки
 const openProductModal = (productId) => {
-  console.log('openProductModal called with', productId)
   selectedProductId.value = productId
-  // найдём объект в локальном массиве и передадим его в модал, чтобы не полагаться на API
-  selectedProduct.value = products.value.find(p => String(p.id) === String(productId)) || null
-  console.log('selectedProduct resolved:', selectedProduct.value)
+  selectedProduct.value = null
   document.body.style.overflow = 'hidden'
 }
 

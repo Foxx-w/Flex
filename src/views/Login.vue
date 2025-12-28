@@ -61,12 +61,12 @@ const handleLogin = async () => {
 
   isLoading.value = true
   try {
-    const creds = {}
-    if (identifier.value.includes('@')) creds.email = identifier.value
-    else creds.username = identifier.value
-    creds.password = password.value
-    if (role.value) creds.userRole = role.value
-
+    const creds = {
+      Email: identifier.value.includes('@') ? identifier.value : undefined,
+      Username: identifier.value.includes('@') ? undefined : identifier.value,
+      Password: password.value,
+      UserRole: role.value || undefined
+    }
     const ok = await authStore.login(creds)
     if (ok) {
       // Перенаправим по роли
@@ -161,6 +161,29 @@ const noop = () => {}
   background: transparent;
   outline: none;
   transition: border-color 0.2s ease;
+}
+
+.login-field select {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #cfcfcf;
+  padding: 12px 6px;
+  font-size: 16px;
+  background: transparent;
+  outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  color: #222;
+}
+
+.login-field select:focus {
+  border-bottom-color: #222;
+}
+
+.login-field select option {
+  color: #000;
 }
 
 .login-field input:focus {

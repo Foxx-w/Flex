@@ -26,6 +26,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   product: {
@@ -48,6 +50,9 @@ const emits = defineEmits(['add-to-cart', 'open-details'])
 const isAdding = ref(false)
 const isAdded = ref(false)
 const isInCart = ref(false)
+
+const router = useRouter()
+const authStore = useAuthStore?.()
 
 // Проверяем, есть ли товар в гостевой корзине
 const checkIfInCart = () => {
@@ -78,6 +83,7 @@ const productImage = computed(() => {
 })
 
 const buttonText = computed(() => {
+  if (!authStore?.isAuthenticated) return 'Войдите, чтобы купить'
   if (isAdding.value) return 'Добавляется...'
   if (isAdded.value || isInCart.value) return 'В корзине'
   if (props.product.count === 0) return 'Нет в наличии'
@@ -87,11 +93,15 @@ const buttonText = computed(() => {
 const addToCart = (event) => {
   // предотвращаем открытие деталей при клике на кнопку корзины
   if (event && event.stopPropagation) event.stopPropagation()
+  if (!authStore?.isAuthenticated) {
+    router.push('/login')
+    return
+  }
   if (isAdding.value || isAdded.value || isInCart.value || props.product.count === 0) return
 
   isAdding.value = true
   
-  // Сохраняем в гостевую корзину
+  // Сохраняем в корзину (для авторизованных пользователей контролируется бекенд/стором)
   saveToGuestCart()
   
   // Имитация запроса на сервер

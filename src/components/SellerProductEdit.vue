@@ -352,61 +352,30 @@ const loadGame = async () => {
   loading.value = true
   try {
     console.log('Загрузка игры ID:', props.gameId)
-    
-    if (!import.meta.env.VITE_API_URL) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockGame = {
-        id: props.gameId,
-        title: 'Название игры',
-        developerTitle: 'Название разработчика',
-        publisherTitle: 'Название издателя',
-        price: 1000,
-        description: 'Описание игры',
-        genres: [{ title: 'Экшен' }, { title: 'Приключения' }],
-        language: 'Русский, Английский',
-        platform: 'PC',
-        imageUrl: '',
-        count: 10
-      }
-      
-      Object.assign(form, mockGame)
-      // map mock genres (may be labels) to {id, title}
-      selectedGenres.value = (mockGame.genres || []).map(g => {
-        const key = g.title
-        const found = genresList.find(x => x.id === key || x.label === key)
-        return { id: found ? found.id : key, title: found ? found.label : key }
-      })
-      successMessage.value = 'Мок-данные загружены (API не настроен)'
-      // язык
-      selectedLanguages.value = (mockGame.language || '').split(',').map(s=>s.trim()).filter(Boolean)
-      
-    } else {
-      const gameResp = await games.getById(props.gameId)
-      if (!gameResp || gameResp.statusCode) throw new Error(gameResp?.message || 'Не удалось загрузить игру')
+    const gameResp = await games.getById(props.gameId)
+    if (!gameResp || gameResp.statusCode) throw new Error(gameResp?.message || 'Не удалось загрузить игру')
 
-      Object.assign(form, {
-        title: gameResp.title,
-        developerTitle: gameResp.developerTitle,
-        publisherTitle: gameResp.publisherTitle,
-        price: gameResp.price,
-        description: gameResp.description || '',
-        genres: gameResp.genres || [],
-        language: gameResp.language || '',
-        platform: gameResp.platform || 'PC',
-        imageUrl: gameResp.imageUrl,
-        count: gameResp.count
-      })
-      
-      // normalize genres into {id, title}
-      selectedGenres.value = (gameResp.genres || []).map(g => {
-        const key = g.title
-        const found = genresList.find(x => x.id === key || x.label === key)
-        return { id: found ? found.id : key, title: found ? found.label : key }
-      })
-      // язык
-      selectedLanguages.value = (gameResp.language || '').split(',').map(s=>s.trim()).filter(Boolean)
-    }
+    Object.assign(form, {
+      title: gameResp.title,
+      developerTitle: gameResp.developerTitle,
+      publisherTitle: gameResp.publisherTitle,
+      price: gameResp.price,
+      description: gameResp.description || '',
+      genres: gameResp.genres || [],
+      language: gameResp.language || '',
+      platform: gameResp.platform || 'PC',
+      imageUrl: gameResp.imageUrl,
+      count: gameResp.count
+    })
+
+    // normalize genres into {id, title}
+    selectedGenres.value = (gameResp.genres || []).map(g => {
+      const key = g.title
+      const found = genresList.find(x => x.id === key || x.label === key)
+      return { id: found ? found.id : key, title: found ? found.label : key }
+    })
+    // язык
+    selectedLanguages.value = (gameResp.language || '').split(',').map(s=>s.trim()).filter(Boolean)
     
   } catch (error) {
     console.error('Ошибка загрузки:', error)
@@ -732,7 +701,6 @@ watch(() => props.gameId, () => {
   position: relative;
 }
 
-/* Убрали close-btn */
 
 /* Основные стили формы */
 .product-details {
