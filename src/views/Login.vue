@@ -10,7 +10,6 @@
           <h1 class="login-title">Вход в аккаунт</h1>
           <p class="login-sub">Введите детали входа</p>
 
-          <!-- Разделили Email и Username согласно API -->
           <label class="login-field">
             <input 
               placeholder="Email *" 
@@ -40,7 +39,6 @@
             <div v-if="errors.password" class="field-error">{{ errors.password }}</div>
           </label>
 
-          <!-- Роль теперь обязательна! -->
           <label class="login-field">
             <select v-model="userRole" :disabled="isLoading" required>
               <option value="" disabled>Выберите роль *</option>
@@ -65,7 +63,6 @@
             </div>
           </div>
 
-          <!-- Общее сообщение об ошибке -->
           <div v-if="errorMessage" class="login-error">
             {{ errorMessage }}
           </div>
@@ -81,9 +78,10 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
+
+const API_URL = 'http://localhost:8080/api'
 
 const isLoading = ref(false)
 const email = ref('')
@@ -93,7 +91,6 @@ const userRole = ref('')
 const errorMessage = ref('')
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const errors = reactive({
   email: '',
@@ -102,7 +99,6 @@ const errors = reactive({
   userRole: ''
 })
 
-// Валидация формы
 const isFormValid = computed(() => {
   return email.value.trim() && 
          username.value.trim() && 
@@ -113,30 +109,23 @@ const isFormValid = computed(() => {
 const validateForm = () => {
   let isValid = true
   
-  // Очищаем предыдущие ошибки
-  Object.keys(errors).forEach(key => errors[key] = '')
+  errors.email = ''
+  errors.username = ''
+  errors.password = ''
+  errors.userRole = ''
   
   if (!email.value.trim()) {
     errors.email = 'Email обязателен'
-    isValid = false
-  } else if (!email.value.includes('@')) {
-    errors.email = 'Введите корректный email'
     isValid = false
   }
   
   if (!username.value.trim()) {
     errors.username = 'Имя пользователя обязательно'
     isValid = false
-  } else if (username.value.length < 2 || username.value.length > 100) {
-    errors.username = 'Имя пользователя должно быть от 2 до 100 символов'
-    isValid = false
   }
   
   if (!password.value.trim()) {
     errors.password = 'Пароль обязателен'
-    isValid = false
-  } else if (password.value.length < 6) {
-    errors.password = 'Пароль должен быть не менее 6 символов'
     isValid = false
   }
   
@@ -155,32 +144,48 @@ const handleLogin = async () => {
   errorMessage.value = ''
   
   try {
-    // Создаем объект ТОЧНО как в документации UserRequest
-    const userRequest = {
-      Email: email.value.trim(),
-      Username: username.value.trim(),
-      Password: password.value,
-      UserRole: userRole.value // CUSTOMER или SELLER
-    }
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        Email: email.value.trim(),
+        Username: username.value.trim(),
+        Password: password.value,
+        UserRole: userRole.value
+      })
+    })
     
-    console.log('Отправляем запрос:', userRequest)
-    
-    const success = await authStore.login(userRequest)
-    
-    if (success) {
-      console.log('Логин успешен, роль:', authStore.userRole)
-      // После успешного логина перенаправляем по роли
-      if (authStore.userRole === 'SELLER') {
-        router.push('/sellerpage')
-      } else {
-        router.push('/')
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        errorMessage.value = errorData.message || 'Неверные учетные данные'
+      } catch {
+        errorMessage.value = 'Ошибка сервера'
       }
-    } else {
-      errorMessage.value = 'Неверные учетные данные'
+      return
     }
+    
+    const data = await response.json()
+    
+    localStorage.setItem('userRole', userRole.value)
+    
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token)
+    }
+    
+    console.log('Логин успешен, роль:', userRole.value)
+    
+    if (userRole.value === 'SELLER') {
+      router.push('/sellerpage')
+    } else {
+      router.push('/')
+    }
+    
   } catch (error) {
     console.error('Login error:', error)
-    errorMessage.value = error.response?.data?.message || 'Ошибка при входе. Попробуйте снова.'
+    errorMessage.value = 'Ошибка сети. Проверьте подключение.'
   } finally {
     isLoading.value = false
   }
@@ -213,7 +218,7 @@ const handleLogin = async () => {
   align-items: center;
   gap: 160px;
   width: 100%;
-  max-width: 1480px; /* 900px + 420px + 160px gap */
+  max-width: 1480px;
   margin: 0 auto;
 }
 
@@ -347,7 +352,6 @@ const handleLogin = async () => {
   text-align: center;
 }
 
-/* Плавная адаптация для больших экранов */
 @media (max-width: 1600px) {
   .login-canvas {
     padding: 120px 50px;
@@ -355,7 +359,7 @@ const handleLogin = async () => {
   
   .login-layout {
     gap: 120px;
-    max-width: 1340px; /* 800px + 420px + 120px */
+    max-width: 1340px;
   }
   
   .login-image {
@@ -382,7 +386,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Средние экраны - начинаем уменьшать изображение */
 @media (max-width: 1200px) {
   .login-canvas {
     padding: 80px 30px;
@@ -404,7 +407,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Переходный этап - уменьшаем дальше */
 @media (max-width: 1024px) {
   .login-canvas {
     padding: 60px 25px;
@@ -430,7 +432,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Планшеты - скрываем изображение, центрируем форму */
 @media (max-width: 900px) {
   .login-canvas {
     padding: 50px 20px;
@@ -471,7 +472,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Мобильные устройства среднего размера */
 @media (max-width: 600px) {
   .login-canvas {
     padding: 40px 15px;
@@ -531,7 +531,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Маленькие мобильные устройства */
 @media (max-width: 400px) {
   .login-canvas {
     padding: 30px 10px;
@@ -574,7 +573,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Очень маленькие экраны */
 @media (max-width: 320px) {
   .login-form {
     padding: 20px 15px;

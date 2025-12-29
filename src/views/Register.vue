@@ -85,9 +85,10 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
+
+const API_URL = 'http://localhost:8080/api'
 
 const isLoading = ref(false)
 const email = ref('')
@@ -98,7 +99,6 @@ const userRole = ref('')
 const errorMessage = ref('')
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const errors = reactive({
   email: '',
@@ -170,7 +170,7 @@ const handleRegister = async () => {
   errorMessage.value = ''
   
   try {
-    // Создаем объект для регистрации
+    // Создаем объект UserRequest как в документации
     const userRequest = {
       Email: email.value.trim(),
       Username: username.value.trim(),
@@ -180,18 +180,53 @@ const handleRegister = async () => {
     
     console.log('Отправляем запрос на регистрацию:', userRequest)
     
-    const success = await authStore.register(userRequest)
+    // Прямой fetch запрос на регистрацию
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userRequest),
+      credentials: 'include' // Для работы с куками
+    })
     
-    if (success) {
-      console.log('Регистрация успешна')
-      // После успешной регистрации перенаправляем на логин
-      router.push('/login')
-    } else {
-      errorMessage.value = 'Ошибка при регистрации'
+    if (!response.ok) {
+      // Пробуем получить ошибку в формате ApiErrorResponse
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
     }
+    
+    // Регистрация успешна, но сервер может не возвращать данные
+    // Проверяем, есть ли ответ
+    let responseData = {}
+    try {
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json()
+      }
+    } catch {
+      // Игнорируем ошибки парсинга, если ответ пустой
+    }
+    
+    console.log('Регистрация успешна:', responseData)
+    
+    // Показываем сообщение об успехе и перенаправляем
+    if (responseData.message) {
+      alert(responseData.message)
+    } else {
+      alert('Регистрация успешна! Теперь войдите в аккаунт.')
+    }
+    
+    // После успешной регистрации перенаправляем на логин
+    router.push('/login')
+    
   } catch (error) {
     console.error('Register error:', error)
-    errorMessage.value = error.response?.data?.message || 'Ошибка при регистрации. Попробуйте снова.'
+    errorMessage.value = error.message || 'Ошибка при регистрации. Попробуйте снова.'
   } finally {
     isLoading.value = false
   }

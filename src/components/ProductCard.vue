@@ -13,8 +13,8 @@
       class="add-to-cart-btn" 
       aria-label="Добавить в корзину"
       @click.stop="addToCart"
-      :class="{ 'adding': isAdding, 'added': isAdded || isInCart }"
-      :disabled="isAdding || isInCart || !isAvailable || !canAddToCart"
+      :class="{ 'adding': isAdding, 'added': isAdded }"
+      :disabled="isAdding || !isAvailable"
     >
       <span class="btn-text">{{ buttonText }}</span>
       <span class="btn-icon">✓</span>
@@ -23,10 +23,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { useCartStore } from '../stores/cart'
+
+const API_URL = 'http://localhost:8080/api'
 
 const props = defineProps({
   product: {
@@ -48,8 +48,6 @@ const props = defineProps({
 const emit = defineEmits(['add-to-cart', 'open-details'])
 
 const router = useRouter()
-const authStore = useAuthStore()
-const cartStore = useCartStore()
 
 const isAdding = ref(false)
 const isAdded = ref(false)
@@ -63,23 +61,13 @@ const isAvailable = computed(() => {
 
 // Проверяем, может ли пользователь добавлять в корзину
 const canAddToCart = computed(() => {
-  return authStore.isAuthenticated && authStore.userRole === 'CUSTOMER'
+  const userRole = localStorage.getItem('userRole')
+  return userRole === 'CUSTOMER'
 })
 
-// Проверяем, есть ли товар в корзине
-const isInCart = computed(() => {
-  if (!authStore.isAuthenticated || authStore.userRole !== 'CUSTOMER') {
-    return false
-  }
-  return cartStore.isInCart(props.product.id)
-})
-
-// Получаем количество товара в корзине
-const quantityInCart = computed(() => {
-  if (!authStore.isAuthenticated || authStore.userRole !== 'CUSTOMER') {
-    return 0
-  }
-  return cartStore.getItemQuantity(props.product.id)
+// Проверяем, авторизован ли пользователь
+const isAuthenticated = computed(() => {
+  return !!localStorage.getItem('userRole')
 })
 
 // Форматирование цены
@@ -91,13 +79,10 @@ const formatPrice = (price) => {
 
 // Текст кнопки
 const buttonText = computed(() => {
-  if (!authStore.isAuthenticated) return 'Войдите, чтобы купить'
-  if (authStore.userRole !== 'CUSTOMER') return 'Только для покупателей'
+  if (!isAuthenticated.value) return 'Войдите, чтобы купить'
+  if (!canAddToCart.value) return 'Только для покупателей'
   if (isAdding.value) return 'Добавляется...'
-  if (isInCart.value) {
-    const qty = quantityInCart.value
-    return qty > 0 ? `В корзине (${qty})` : 'В корзине'
-  }
+  if (isAdded.value) return 'Добавлено!'
   if (!isAvailable.value) return 'Нет в наличии'
   return 'В корзину'
 })
@@ -105,13 +90,13 @@ const buttonText = computed(() => {
 // Добавление в корзину
 const addToCart = async () => {
   // Если не авторизован - перенаправляем на логин
-  if (!authStore.isAuthenticated) {
+  if (!isAuthenticated.value) {
     router.push('/login')
     return
   }
 
   // Если не покупатель - показываем сообщение
-  if (authStore.userRole !== 'CUSTOMER') {
+  if (!canAddToCart.value) {
     alert('Корзина доступна только покупателям')
     return
   }
@@ -122,33 +107,57 @@ const addToCart = async () => {
     return
   }
 
-  // Если уже добавляется или уже в корзине
-  if (isAdding.value || isInCart.value) {
+  // Если уже добавляется
+  if (isAdding.value) {
     return
   }
 
   isAdding.value = true
 
   try {
-    // Используем хранилище корзины для добавления товара
-    const success = await cartStore.addToCart(props.product.id, 1)
+    const authToken = localStorage.getItem('auth_token')
     
-    if (success) {
-      isAdded.value = true
-      
-      // Отправляем событие родителю
-      emit('add-to-cart', props.product)
-      
-      // Показываем успех 2 секунды, затем сбрасываем анимацию
-      setTimeout(() => {
-        isAdded.value = false
-      }, 2000)
-    } else {
-      alert('Не удалось добавить товар в корзину')
+    if (!authToken) {
+      alert('Требуется авторизация')
+      router.push('/login')
+      return
     }
+
+    // Прямой fetch запрос для добавления в корзину
+    const response = await fetch(`${API_URL}/carts/items`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        GameId: props.product.id,
+        Quantity: 1
+      }),
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || 'Ошибка добавления в корзину')
+    }
+
+    const data = await response.json()
+    
+    // Показываем успех
+    isAdded.value = true
+    
+    // Отправляем событие родителю
+    emit('add-to-cart', props.product)
+    
+    // Сбрасываем анимацию через 2 секунды
+    setTimeout(() => {
+      isAdded.value = false
+    }, 2000)
+
   } catch (error) {
     console.error('Ошибка добавления в корзину:', error)
-    alert('Ошибка при добавлении в корзину')
+    alert(error.message || 'Ошибка при добавлении в корзину')
   } finally {
     isAdding.value = false
   }
@@ -158,21 +167,10 @@ const addToCart = async () => {
 const openDetails = () => {
   emit('open-details', props.product.id)
 }
-
-// Следим за изменениями в корзине
-watch(
-  () => cartStore.items,
-  () => {
-    // При изменении корзины обновляем состояние
-    if (isInCart.value && isAdded.value) {
-      isAdded.value = false
-    }
-  },
-  { deep: true }
-)
 </script>
 
 <style scoped>
+/* Стили остаются без изменений */
 .product-card {
   width: 240px;
   height: 400px;

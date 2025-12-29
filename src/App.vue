@@ -3,7 +3,6 @@
   <GuestMenu v-model:visible="showGuestMenu" />
   <UserMenu v-model:visible="showUserMenu" />
   <SellerMenu v-model:visible="showSellerMenu" />
-  <!-- Global GenresMenu: updates shared selectedGenreIds when applied -->
   <GenresMenu v-model:visible="showGenresMenu" :initialSelected="selectedGenreIds" @apply="handleGenresApply" />
   <ScrollTop />
 </template>
@@ -51,7 +50,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-/* Глобальные стили */
 html, body, #app {
   height: 100%;
   margin: 0;
@@ -69,7 +67,6 @@ body {
   box-sizing: border-box;
 }
 
-/* Кастомный скроллбар */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -88,13 +85,11 @@ body {
   background: #555;
 }
 
-/* Улучшаем фокус для доступности */
 :focus-visible {
   outline: 2px solid #007bff;
   outline-offset: 2px;
 }
 
-/* Скрываем контент только для скринридеров */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -107,7 +102,6 @@ body {
   border: 0;
 }
 
-/* Анимации */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;

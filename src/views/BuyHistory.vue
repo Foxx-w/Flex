@@ -28,7 +28,7 @@
             <!-- Состояние пустого списка -->
             <div v-else-if="orders.length === 0" class="history-empty">
               <p>У вас пока нет покупок</p>
-              <router-link to="/games" class="browse-button">Перейти к играм</router-link>
+              <router-link to="/" class="browse-button">Перейти к играм</router-link>
             </div>
 
             <!-- Список заказов -->
@@ -40,14 +40,14 @@
                   <span class="order-status" :class="getStatusClass(order.status)">
                     {{ getStatusText(order.status) }}
                   </span>
-                  <span class="order-total">{{ formatPrice(order.total) }}</span>
+                  <span class="order-total">{{ formatPrice(order.totalAmount) }}</span>
                 </div>
                 
                 <div class="order-items">
-                  <div v-for="item in order.items" :key="item.gameId" class="order-item">
-                    <img v-if="item.image" :src="item.image" :alt="item.title" class="item-image" />
+                  <div v-for="item in order.orderItems" :key="item.gameId" class="order-item">
+                    <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.gameTitle" class="item-image" />
                     <div class="item-info">
-                      <h4 class="item-title">{{ item.title }}</h4>
+                      <h4 class="item-title">{{ item.gameTitle }}</h4>
                       <p class="item-price">{{ formatPrice(item.price) }}</p>
                     </div>
                     <span class="item-quantity">×{{ item.quantity }}</span>
@@ -69,36 +69,115 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
-import { useAuthStore } from '../stores/auth'
-import { useAppStore } from '../stores/app'
-import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 
-const authStore = useAuthStore()
-const appStore = useAppStore()
+const API_URL = 'http://localhost:8080/api'
 const router = useRouter()
 
 const loading = ref(false)
 const error = ref(null)
+const orders = ref([])
 
-const orders = computed(() => appStore.orders || [])
+// Загрузка истории заказов
+const loadOrders = async () => {
+  loading.value = true
+  error.value = null
+  
+  try {
+    // Проверяем авторизацию
+    const userRole = localStorage.getItem('userRole')
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!userRole) {
+      router.push('/login')
+      return
+    }
+    
+    if (userRole !== 'CUSTOMER') {
+      error.value = 'История покупок доступна только покупателям'
+      loading.value = false
+      return
+    }
+    
+    if (!authToken) {
+      alert('Требуется авторизация')
+      router.push('/login')
+      return
+    }
+    
+    // GET /api/orders?page=...&pageSize=... – получить страницу заказов (Покупатель)
+    const response = await fetch(`${API_URL}/orders?Page=1&PageSize=100`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      },
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+    
+    const data = await response.json()
+    
+    // Обрабатываем ответ в формате Page<OrderResponse>
+    if (data && Array.isArray(data.content)) {
+      orders.value = data.content
+    } else if (Array.isArray(data)) {
+      orders.value = data
+    } else if (data && data.items) {
+      orders.value = data.items
+    } else {
+      orders.value = []
+      console.warn('Неожиданный формат ответа заказов:', data)
+    }
+    
+    console.log('Загружено заказов:', orders.value.length)
+    
+  } catch (err) {
+    console.error('Ошибка загрузки заказов:', err)
+    error.value = err.message || 'Ошибка загрузки истории покупок'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Общее количество товаров во всех заказах
 const totalItems = computed(() => {
   return orders.value.reduce((total, order) => {
-    return total + (order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0)
+    return total + (order.orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0)
   }, 0)
 })
 
+// Форматирование даты
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
+  if (!dateString) return 'Дата не указана'
+  
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateString
+  }
 }
 
+// Форматирование цены
 const formatPrice = (price) => {
+  if (!price && price !== 0) return '0 ₽'
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
@@ -106,51 +185,37 @@ const formatPrice = (price) => {
   }).format(price)
 }
 
+// Класс для статуса заказа
 const getStatusClass = (status) => {
   const statusMap = {
-    'completed': 'status-completed',
-    'processing': 'status-processing',
-    'cancelled': 'status-cancelled',
-    'delivered': 'status-delivered'
+    'COMPLETED': 'status-completed',
+    'PROCESSING': 'status-processing',
+    'CANCELLED': 'status-cancelled',
+    'DELIVERED': 'status-delivered',
+    'PAID': 'status-paid',
+    'SHIPPED': 'status-shipped'
   }
   return statusMap[status] || 'status-default'
 }
 
+// Текст статуса заказа
 const getStatusText = (status) => {
   const statusTexts = {
-    'completed': 'Завершён',
-    'processing': 'Обрабатывается',
-    'cancelled': 'Отменён',
-    'delivered': 'Доставлен'
+    'COMPLETED': 'Завершён',
+    'PROCESSING': 'Обрабатывается',
+    'CANCELLED': 'Отменён',
+    'DELIVERED': 'Доставлен',
+    'PAID': 'Оплачен',
+    'SHIPPED': 'Отправлен'
   }
-  return statusTexts[status] || status
+  return statusTexts[status] || status || 'Не указан'
 }
 
-const loadOrders = async () => {
-  if (!authStore.isAuthenticated) {
-    router.push('/login')
-    return
-  }
-  
-  loading.value = true
-  error.value = null
-  
-  try {
-    // Предполагаем, что loadOrders загружает заказы в store
-    await appStore.loadOrders(1) // или другой ID пользователя
-  } catch (err) {
-    console.error('Не удалось загрузить заказы:', err)
-    error.value = err.message || 'Ошибка загрузки'
-  } finally {
-    loading.value = false
-  }
-}
-
+// Загружаем историю при монтировании
 onMounted(() => {
   loadOrders()
 })
 </script>
-
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;600&display=swap');
@@ -209,6 +274,8 @@ onMounted(() => {
   font-size: 36px;
   margin: 0;
   font-weight: 500;
+  font-family: 'Montserrat Alternates', sans-serif;
+  color: #111;
   transition: font-size 0.3s ease;
 }
 
@@ -219,6 +286,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   transition: all 0.3s ease;
+  font-family: 'Montserrat Alternates', sans-serif;
 }
 
 .history-body {
@@ -265,13 +333,36 @@ onMounted(() => {
   text-align: center;
   padding: 60px 20px;
   color: #676767;
+  font-family: 'Montserrat Alternates', sans-serif;
+}
+
+.history-loading {
+  font-size: 18px;
+}
+
+.history-error {
+  background: #fff5f5;
+  border-radius: 15px;
+  border: 1px solid #ffcccc;
+}
+
+.history-empty {
+  background: #f8f8f8;
+  border-radius: 15px;
+  border: 1px dashed #ddd;
+}
+
+.history-error p,
+.history-empty p {
+  margin: 0 0 15px 0;
+  font-size: 16px;
 }
 
 .retry-button,
 .browse-button {
   margin-top: 15px;
   padding: 10px 24px;
-  background: #4a6cf7;
+  background: #A53DFF;
   color: white;
   border: none;
   border-radius: 8px;
@@ -279,12 +370,15 @@ onMounted(() => {
   font-size: 16px;
   text-decoration: none;
   display: inline-block;
-  transition: background 0.3s ease;
+  transition: all 0.3s ease;
+  font-family: 'Montserrat Alternates', sans-serif;
 }
 
 .retry-button:hover,
 .browse-button:hover {
-  background: #3a5ce5;
+  background: #8C2BD9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(165, 61, 255, 0.2);
 }
 
 /* Стили для списка заказов */
@@ -300,6 +394,12 @@ onMounted(() => {
   padding: 20px;
   background: white;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.order-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .order-header {
@@ -311,22 +411,26 @@ onMounted(() => {
   margin-bottom: 15px;
   flex-wrap: wrap;
   gap: 10px;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .order-id {
   font-weight: 600;
   color: #333;
+  font-size: 16px;
 }
 
 .order-date {
   color: #666;
+  font-size: 14px;
 }
 
 .order-status {
-  padding: 4px 12px;
+  padding: 6px 12px;
   border-radius: 20px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .status-completed {
@@ -349,6 +453,16 @@ onMounted(() => {
   color: #2a8bf7;
 }
 
+.status-paid {
+  background: #f0fff4;
+  color: #52c41a;
+}
+
+.status-shipped {
+  background: #f0f7ff;
+  color: #1890ff;
+}
+
 .status-default {
   background: #f5f5f5;
   color: #666;
@@ -358,6 +472,7 @@ onMounted(() => {
   font-weight: 700;
   font-size: 18px;
   color: #333;
+  font-family: 'Montserrat Alternates', sans-serif;
 }
 
 /* Стили для элементов заказа */
@@ -371,10 +486,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
   background: #fafafa;
   transition: all 0.3s ease;
+}
+
+.order-item:hover {
+  background: #f5f5f5;
 }
 
 .item-image {
@@ -382,6 +501,7 @@ onMounted(() => {
   height: 60px;
   border-radius: 8px;
   object-fit: cover;
+  border: 1px solid #eee;
 }
 
 .item-info {
@@ -392,17 +512,22 @@ onMounted(() => {
   margin: 0 0 5px 0;
   font-size: 16px;
   color: #333;
+  font-weight: 500;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .item-price {
   margin: 0;
   color: #666;
   font-size: 14px;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .item-quantity {
   font-weight: 600;
   color: #333;
+  font-size: 16px;
+  font-family: 'Montserrat Alternates', sans-serif;
 }
 
 /* Медиа-запросы */

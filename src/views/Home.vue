@@ -107,31 +107,35 @@
           до {{ formatPrice(maxPrice) }} ₽
         </span>
         <span class="filter-count">
-          (найдено {{ displayedProducts.length }} из {{ allProducts.length }} товаров)
+          (найдено {{ pageData.totalElements || 0 }} товаров)
         </span>
       </div>
 
       <!-- Сетка товаров -->
       <div class="products-grid">
         <ProductCard 
-          v-for="product in paginatedProducts" 
+          v-for="product in pageData.content" 
           :key="product.id"
           :product="product"
           @add-to-cart="handleAddToCart"
           @open-details="openProductModal"
         />
         
-        <div v-if="displayedProducts.length === 0 && filterApplied" class="no-results">
+        <div v-if="pageData.content.length === 0 && !isLoading" class="no-results">
           {{ noResultsMessage }}
+        </div>
+        
+        <div v-if="isLoading" class="loading-spinner">
+          Загрузка товаров...
         </div>
       </div>
 
       <!-- Пагинация -->
-      <div v-if="totalPages > 1 && displayedProducts.length > 0" class="pagination">
+      <div v-if="pageData.totalPages > 1 && pageData.content.length > 0" class="pagination">
         <button 
           class="page-btn prev-btn" 
           @click="prevPage"
-          :disabled="currentPage === 1"
+          :disabled="pageData.pageNumber === 1 || isLoading"
           aria-label="Предыдущая страница"
         >
           ←
@@ -142,10 +146,11 @@
             v-for="page in visiblePages" 
             :key="page"
             class="page-number" 
-            :class="{ active: page === currentPage }"
+            :class="{ active: page === pageData.pageNumber }"
             @click="goToPage(page)"
+            :disabled="isLoading"
             :aria-label="`Страница ${page}`"
-            :aria-current="page === currentPage ? 'page' : null"
+            :aria-current="page === pageData.pageNumber ? 'page' : null"
           >
             {{ page }}
           </button>
@@ -156,14 +161,14 @@
         <button 
           class="page-btn next-btn" 
           @click="nextPage"
-          :disabled="currentPage === totalPages"
+          :disabled="pageData.pageNumber === pageData.totalPages || isLoading"
           aria-label="Следующая страница"
         >
           →
         </button>
         
         <div class="page-info">
-          Страница {{ currentPage }} из {{ totalPages }}
+          Страница {{ pageData.pageNumber }} из {{ pageData.totalPages }}
         </div>
       </div>
       
@@ -184,20 +189,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { selectedGenreIds } from '../stores/ui'
-import { useAuthStore } from '../stores/auth'
-import { useCartStore } from '../stores/cart'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import ProductCard from '../components/ProductCard.vue'
 import ProductDetails from '../components/GameDetails.vue'
-import { games as gamesApi } from '../services/api'
 
+const API_URL = 'http://localhost:8080/api'
 const router = useRouter()
-const authStore = useAuthStore()
-const cartStore = useCartStore()
 
 // Реактивные данные для фильтров
 const minPriceInput = ref('')
@@ -211,75 +211,14 @@ const filterApplied = ref(false)
 // Модальное окно
 const selectedProductId = ref(null)
 
-// Пагинация
-const currentPage = ref(1)
-const itemsPerPage = ref(10)
-
-// Массив всех товаров
-const allProducts = ref([])
-
-// Загрузка товаров
-const loadProducts = async (filters = {}) => {
-  try {
-    isLoading.value = true
-    
-    // Используем API с правильными параметрами
-    const params = {
-      Page: filters.Page || 1,
-      PageSize: filters.PageSize || 1000,
-      MinPrice: filters.MinPrice,
-      MaxPrice: filters.MaxPrice,
-      GameTitle: filters.GameTitle,
-      Genres: filters.Genres || []
-    }
-    
-    // Очищаем undefined/null значения
-    Object.keys(params).forEach(key => {
-      if (params[key] === undefined || params[key] === null || 
-          (Array.isArray(params[key]) && params[key].length === 0)) {
-        delete params[key]
-      }
-    })
-    
-    const response = await gamesApi.list(params)
-    
-    // Обрабатываем разные форматы ответа
-    if (Array.isArray(response)) {
-      allProducts.value = response
-    } else if (response && Array.isArray(response.content)) {
-      allProducts.value = response.content
-    } else if (response && response.id) {
-      allProducts.value = [response]
-    } else {
-      allProducts.value = []
-      console.warn('Неожиданный формат ответа:', response)
-    }
-    
-    console.log('Загружено товаров:', allProducts.value.length)
-  } catch (error) {
-    console.error('Ошибка загрузки товаров:', error)
-    allProducts.value = []
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Загружаем товары при монтировании
-onMounted(async () => {
-  await loadProducts()
+// Пагинация и данные (в соответствии с Page<T>)
+const pageData = ref({
+  content: [],
+  pageNumber: 1,
+  pageSize: 12,
+  totalElements: 0,
+  totalPages: 0
 })
-
-// Следим за изменениями фильтров жанров
-watch(() => selectedGenreIds.value, (newGenres) => {
-  if (newGenres && newGenres.length > 0) {
-    filterApplied.value = true
-    currentPage.value = 1
-    applyFilter()
-  } else if (filterApplied.value && !minPrice.value && !maxPrice.value) {
-    filterApplied.value = false
-    resetFilter()
-  }
-}, { deep: true })
 
 // Форматирование цены
 const formatPrice = (price) => {
@@ -328,7 +267,79 @@ const handleInputBlur = (type) => {
   }
 }
 
-// Применение фильтра
+// Загрузка товаров с сервера
+const loadProducts = async (page = 1) => {
+  try {
+    isLoading.value = true
+    
+    // Собираем параметры запроса в соответствии с FilterRequest
+    const params = new URLSearchParams({
+      Page: page.toString(),
+      PageSize: pageData.value.pageSize.toString(),
+    })
+    
+    if (minPrice.value !== null) {
+      params.append('MinPrice', minPrice.value.toString())
+    }
+    
+    if (maxPrice.value !== null) {
+      params.append('MaxPrice', maxPrice.value.toString())
+    }
+    
+    // По документации: GET /api/games?filters...&page=...&pageSize=...
+    const response = await fetch(`${API_URL}/games?${params.toString()}`, {
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      // Пробуем получить ошибку в формате ApiErrorResponse
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+    
+    const data = await response.json()
+    
+    // Обрабатываем ответ в формате Page<GameResponse>
+    if (data && Array.isArray(data.content)) {
+      pageData.value = {
+        content: data.content,
+        pageNumber: data.pageNumber || page,
+        pageSize: data.pageSize || pageData.value.pageSize,
+        totalElements: data.totalElements || 0,
+        totalPages: data.totalPages || 0
+      }
+    } else {
+      // Если сервер вернул не Page, а просто массив
+      pageData.value = {
+        content: Array.isArray(data) ? data : [],
+        pageNumber: page,
+        pageSize: pageData.value.pageSize,
+        totalElements: Array.isArray(data) ? data.length : 0,
+        totalPages: Math.ceil((Array.isArray(data) ? data.length : 0) / pageData.value.pageSize)
+      }
+    }
+    
+    console.log('Загружено товаров:', pageData.value.content.length, 'Всего:', pageData.value.totalElements)
+    
+  } catch (error) {
+    console.error('Ошибка загрузки товаров:', error)
+    pageData.value = {
+      content: [],
+      pageNumber: 1,
+      pageSize: pageData.value.pageSize,
+      totalElements: 0,
+      totalPages: 0
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Применение фильтра (серверная фильтрация)
 const applyFilter = async () => {
   if (isLoading.value) return
 
@@ -344,18 +355,12 @@ const applyFilter = async () => {
   }
 
   filterApplied.value = true
-  currentPage.value = 1
+  pageData.value.pageNumber = 1
 
   try {
-    const filters = {}
-    if (minPrice.value != null) filters.MinPrice = minPrice.value
-    if (maxPrice.value != null) filters.MaxPrice = maxPrice.value
-    if (selectedGenreIds.value && selectedGenreIds.value.length) filters.Genres = selectedGenreIds.value
-
-    await loadProducts(filters)
+    await loadProducts(1)
     isSuccess.value = true
     
-    // Сбрасываем успешное состояние через 2 секунды
     setTimeout(() => {
       isSuccess.value = false
     }, 2000)
@@ -373,12 +378,10 @@ const resetFilter = async () => {
   maxPriceInput.value = ''
   minPrice.value = null
   maxPrice.value = null
-  selectedGenreIds.value = []
   filterApplied.value = false
-  currentPage.value = 1
+  pageData.value.pageNumber = 1
   
-  // Загружаем все товары заново
-  await loadProducts()
+  await loadProducts(1)
 }
 
 // Открытие модалки с деталями товара
@@ -396,33 +399,52 @@ const closeProductModal = () => {
 // Обработка добавления в корзину из карточки товара
 const handleAddToCart = async (product) => {
   // Проверяем авторизацию
-  if (!authStore.isAuthenticated) {
+  const userRole = localStorage.getItem('userRole')
+  const authToken = localStorage.getItem('auth_token')
+  
+  if (!userRole) {
     alert('Войдите в аккаунт как покупатель чтобы добавить товар в корзину')
     router.push('/login')
     return
   }
   
-  if (authStore.userRole !== 'CUSTOMER') {
+  if (userRole !== 'CUSTOMER') {
     alert('Корзина доступна только покупателям')
     return
   }
   
   try {
-    const success = await cartStore.addToCart(product.id, 1)
-    if (success) {
-      alert(`Товар "${product.title}" добавлен в корзину!`)
-    } else {
-      alert('Не удалось добавить товар в корзину')
+    // CartItemRequest: { GameId, Quantity }
+    const response = await fetch(`${API_URL}/carts/items`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        GameId: product.id,
+        Quantity: 1
+      }),
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || 'Ошибка добавления в корзину')
     }
+    
+    const cartData = await response.json()
+    alert(`Товар "${product.title || product.name}" добавлен в корзину!`)
+    
   } catch (error) {
     console.error('Ошибка добавления в корзину:', error)
-    alert('Ошибка при добавлении в корзину')
+    alert(error.message || 'Ошибка при добавлении в корзину')
   }
 }
 
 // Обработка добавления в корзину из модалки
 const handleAddToCartFromModal = async (productId) => {
-  const product = allProducts.value.find(p => p.id === productId)
+  const product = pageData.value.content.find(p => p.id === productId)
   if (product) {
     await handleAddToCart(product)
   }
@@ -442,8 +464,9 @@ const handleEscape = (e) => {
   }
 }
 
-// При монтировании
-onMounted(() => {
+// Загружаем товары при монтировании
+onMounted(async () => {
+  await loadProducts(1)
   document.addEventListener('keydown', handleEscape)
 })
 
@@ -451,79 +474,6 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscape)
   document.body.style.overflow = ''
-})
-
-// Отфильтрованные товары
-const displayedProducts = computed(() => {
-  if (!filterApplied.value) {
-    return allProducts.value
-  }
-  
-  let filtered = [...allProducts.value]
-  
-  // Фильтрация по цене
-  if (minPrice.value !== null || maxPrice.value !== null) {
-    filtered = filtered.filter(product => {
-      const price = product.price || 0
-      const minValid = minPrice.value === null || price >= minPrice.value
-      const maxValid = maxPrice.value === null || price <= maxPrice.value
-      return minValid && maxValid
-    })
-  }
-  
-  // Фильтрация по жанрам
-  if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
-    filtered = filtered.filter(product => {
-      const productGenres = product.genres || []
-      return selectedGenreIds.value.some(genreId => 
-        productGenres.some(g => 
-          g.id === genreId || g.title === genreId
-        )
-      )
-    })
-  }
-  
-  return filtered
-})
-
-// Пагинация
-const totalPages = computed(() => {
-  return Math.ceil(displayedProducts.value.length / itemsPerPage.value)
-})
-
-const paginatedProducts = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  const end = start + itemsPerPage.value
-  return displayedProducts.value.slice(start, end)
-})
-
-// Отображаемые номера страниц
-const visiblePages = computed(() => {
-  const pages = []
-  const maxVisible = 5
-  
-  if (totalPages.value <= maxVisible) {
-    for (let i = 1; i <= totalPages.value; i++) {
-      pages.push(i)
-    }
-  } else {
-    let start = Math.max(1, currentPage.value - 2)
-    let end = Math.min(totalPages.value, start + maxVisible - 1)
-    
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1)
-    }
-    
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-  }
-  
-  return pages
-})
-
-const hasEllipsisEnd = computed(() => {
-  return visiblePages.value[visiblePages.value.length - 1] < totalPages.value
 })
 
 // Сообщение при отсутствии результатов
@@ -538,44 +488,72 @@ const noResultsMessage = computed(() => {
     message = `Товары от ${formatPrice(minPrice.value)} ₽ не найдены`
   } else if (maxPrice.value !== null) {
     message = `Товары до ${formatPrice(maxPrice.value)} ₽ не найдены`
-  } else if (selectedGenreIds.value && selectedGenreIds.value.length > 0) {
-    message = 'Товары по выбранным жанрам не найдены'
   }
   
   return message
 })
 
-// Функции пагинации
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
+// Отображаемые номера страниц
+const visiblePages = computed(() => {
+  const pages = []
+  const maxVisible = 5
+  
+  if (pageData.value.totalPages <= maxVisible) {
+    for (let i = 1; i <= pageData.value.totalPages; i++) {
+      pages.push(i)
+    }
+  } else {
+    let start = Math.max(1, pageData.value.pageNumber - 2)
+    let end = Math.min(pageData.value.totalPages, start + maxVisible - 1)
+    
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+  }
+  
+  return pages
+})
+
+const hasEllipsisEnd = computed(() => {
+  return visiblePages.value[visiblePages.value.length - 1] < pageData.value.totalPages
+})
+
+// Функции пагинации с серверной загрузкой
+const prevPage = async () => {
+  if (pageData.value.pageNumber > 1 && !isLoading.value) {
+    pageData.value.pageNumber--
+    await loadProducts(pageData.value.pageNumber)
     scrollToTop()
   }
 }
 
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++
+const nextPage = async () => {
+  if (pageData.value.pageNumber < pageData.value.totalPages && !isLoading.value) {
+    pageData.value.pageNumber++
+    await loadProducts(pageData.value.pageNumber)
     scrollToTop()
   }
 }
 
-const goToPage = (page) => {
-  currentPage.value = page
-  scrollToTop()
+const goToPage = async (page) => {
+  if (!isLoading.value) {
+    pageData.value.pageNumber = page
+    await loadProducts(page)
+    scrollToTop()
+  }
 }
 
 const scrollToTop = () => {
-  const productsGrid = document.querySelector('.products-grid')
-  if (productsGrid) {
-    window.scrollTo({
-      top: productsGrid.offsetTop - 100,
-      behavior: 'smooth'
-    })
-  }
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  })
 }
 
-// Анимация при наведении
 const hoverButton = (event) => {
   if (!isLoading.value && !isSuccess.value) {
     event.target.style.transform = 'translateY(-2px)'
@@ -589,8 +567,7 @@ const resetButton = (event) => {
 }
 </script>
 
-
-<style> 
+<style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;600&display=swap');
 
 html, body, #app {
@@ -871,8 +848,6 @@ body {
   animation: successPulse 0.5s ease-in-out;
 }
 
-/* inline product details styles removed */
-
 @keyframes successPulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
@@ -916,7 +891,6 @@ body {
   padding: 0 40px;
   box-sizing: border-box;
   
-  /* Grid разметка - максимум 5 карточек в строку */
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 30px;
@@ -924,58 +898,14 @@ body {
   justify-items: center;
 }
 
-.genre-filter-btn {
-  background: #EFEFEF;
-  border: 1px solid rgba(0,0,0,0.06);
-  padding: 8px 12px;
-  border-radius: 12px;
-  cursor: pointer;
+.loading-spinner {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
   font-family: 'Montserrat Alternates', sans-serif;
-  color: #222;
+  font-size: 18px;
+  color: #666;
 }
-.genre-filter-btn.active {
-  background: #A53DFF;
-  color: #fff;
-  border-color: transparent;
-}
-
-/* Встроенный шаблон ProductDetails */
-/* inline product details styles removed */
-
-/* Адаптивные точки */
-@media (max-width: 1600px) {
-  .products-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-@media (max-width: 1200px) {
-  .products-grid {
-    grid-template-columns: repeat(3, 1fr);
-    padding: 0 30px;
-  }
-  .left-block,
-  .right-block {
-    display: none !important;
-  }
-}
-
-@media (max-width: 992px) {
-  .products-grid {
-    grid-template-columns: repeat(2, 1fr);
-    padding: 0 20px;
-  }
-}
-
-@media (max-width: 576px) {
-  .products-grid {
-    grid-template-columns: 1fr;
-    padding: 0 15px;
-    gap: 20px;
-    max-width: 400px;
-  }
-}
-
 
 /* ========== АДАПТИВ ДЛЯ ПАГИНАЦИИ ========== */
 .pagination {
@@ -1079,9 +1009,6 @@ body {
   }
 }
 
-/* ========== МЕДИА-ЗАПРОСЫ ДЛЯ АДАПТИВНОСТИ ========== */
-
-/* Большие планшеты и маленькие десктопы (1200px - 1400px) */
 @media (max-width: 1400px) {
   .three-blocks {
     gap: 60px;
@@ -1118,7 +1045,6 @@ body {
   }
 }
 
-/* Планшеты (768px - 1200px) */
 @media (max-width: 1200px) {
   .three-blocks {
     flex-direction: column;
@@ -1206,7 +1132,6 @@ body {
   }
 }
 
-/* Маленькие планшеты и большие телефоны (576px - 768px) */
 @media (max-width: 768px) {
   .home-canvas {
     min-height: calc(100vh - 140px);
@@ -1323,7 +1248,6 @@ body {
   }
 }
 
-/* Телефоны (до 576px) */
 @media (max-width: 576px) {
   .three-blocks {
     padding: 0 15px;
@@ -1411,7 +1335,6 @@ body {
   }
 }
 
-/* Очень маленькие телефоны (до 400px) */
 @media (max-width: 400px) {
   .three-blocks {
     padding: 0 10px;

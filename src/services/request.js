@@ -1,6 +1,6 @@
 // services/request.js
 
-const API_BASE_URL = 'http://localhost:3000/api' // Замените на ваш URL API
+const API_BASE_URL = 'http://localhost:8080/api' // Замените на ваш URL API
 
 /**
  * Универсальный HTTP-клиент
@@ -87,7 +87,6 @@ async function handleError(response) {
     }
     
   } catch (e) {
-    // Не удалось распарсить JSON
     console.warn('Could not parse error response as JSON:', e)
   }
   
@@ -161,7 +160,6 @@ export function del(endpoint) {
   })
 }
 
-// Экспортируем все методы
 export default {
   request,
   get,

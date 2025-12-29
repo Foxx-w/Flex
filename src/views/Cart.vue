@@ -7,8 +7,8 @@
         <section class="cart-container">
           <div class="cart-header">
             <h1 class="cart-title">Корзина</h1>
-            <div v-if="cartStore.totalItems > 0" class="cart-count">
-              <span class="cart-items-number">{{ cartStore.totalItems }}</span>
+            <div v-if="cartItems.length > 0" class="cart-count">
+              <span class="cart-items-number">{{ cartItems.length }}</span>
               <span class="cart-items-label">товаров</span>
             </div>
           </div>
@@ -37,7 +37,7 @@
 
           <!-- Основное содержимое для авторизованных покупателей -->
           <div v-else class="cart-content">
-            <div v-if="cartStore.isEmpty" class="cart-empty">
+            <div v-if="cartItems.length === 0" class="cart-empty">
               <div class="empty-icon">🛒</div>
               <h3 class="empty-title">Корзина пуста</h3>
               <p class="empty-text">Добавьте товары, чтобы сделать заказ</p>
@@ -59,9 +59,8 @@
               <div class="cart-divider"></div>
 
               <div class="cart-body">
-                <!-- Используем реальные данные из хранилища -->
                 <CartItem 
-                  v-for="item in cartStore.items" 
+                  v-for="item in cartItems" 
                   :key="item.gameId"
                   :item="item"
                   :checked="isItemChecked(item.gameId)"
@@ -75,20 +74,20 @@
         </section>
 
         <!-- Боковая панель с итогами (только для покупателей) -->
-        <aside v-if="isCustomer && !cartStore.isEmpty" class="cart-sidebar">
+        <aside v-if="isCustomer && cartItems.length > 0" class="cart-sidebar">
           <div class="summary-box">
             <div class="summary-title">Итого:</div>
-            <div class="summary-price">{{ cartStore.totalPrice }} ₽</div>
+            <div class="summary-price">{{ totalPrice }} ₽</div>
             
             <button 
               class="order-btn"
               @click="handleOrder"
-              :disabled="isOrdering || cartStore.isEmpty"
+              :disabled="isOrdering || cartItems.length === 0"
             >
               {{ isOrdering ? 'Оформление...' : 'Оформить заказ' }}
             </button>
             
-            <div class="summary-note">{{ cartStore.totalItems }} товаров</div>
+            <div class="summary-note">{{ cartItems.length }} товаров</div>
           </div>
         </aside>
       </div>
@@ -101,52 +100,99 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { useCartStore } from '../stores/cart'
 import SiteHeader from '../components/Header.vue'
 import Footer from '../components/Footer.vue'
 import CheckBox from '../components/CheckBox.vue'
 import CartItem from '../components/CartItem.vue'
 
+const API_URL = 'http://localhost:8080/api'
+
 const router = useRouter()
-const authStore = useAuthStore()
-const cartStore = useCartStore()
 
 const allChecked = ref(false)
 const isOrdering = ref(false)
 const checkedItems = ref(new Set())
+const cartItems = ref([])
+const isLoading = ref(false)
 
 // Проверки авторизации и роли
-const isAuthenticated = computed(() => authStore.isAuthenticated)
-const isCustomer = computed(() => authStore.userRole === 'CUSTOMER')
-const canAccessCart = computed(() => isAuthenticated.value && isCustomer.value)
-
-// Загрузка корзины при монтировании
-onMounted(async () => {
-  if (canAccessCart.value) {
-    await cartStore.fetchCart()
-  }
+const isAuthenticated = computed(() => {
+  return localStorage.getItem('userRole') !== null
 })
 
-// Следим за изменениями в корзине для обновления состояния
-watch(() => cartStore.items, (items) => {
-  // Сбрасываем выбранные элементы если корзина пуста
-  if (items.length === 0) {
-    checkedItems.value.clear()
-    allChecked.value = false
+const isCustomer = computed(() => {
+  return localStorage.getItem('userRole') === 'CUSTOMER'
+})
+
+const canAccessCart = computed(() => isAuthenticated.value && isCustomer.value)
+
+// Загрузка корзины
+const fetchCart = async () => {
+  if (!canAccessCart.value) {
+    cartItems.value = []
+    return
   }
-  // Обновляем состояние "Выбрать всё"
-  updateAllCheckedState()
-}, { deep: true })
+
+  try {
+    isLoading.value = true
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      throw new Error('Требуется авторизация')
+    }
+
+    // GET /api/carts – получить корзину (Покупатель)
+    const response = await fetch(`${API_URL}/carts`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      },
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      // Если 404 или пустая корзина
+      if (response.status === 404) {
+        cartItems.value = []
+        return
+      }
+      
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+
+    const data = await response.json()
+    
+    // Обрабатываем CartResponse: { cartItems: CartItemResponse[] }
+    if (data && Array.isArray(data.cartItems)) {
+      cartItems.value = data.cartItems
+    } else if (Array.isArray(data)) {
+      cartItems.value = data
+    } else {
+      cartItems.value = []
+      console.warn('Неожиданный формат ответа корзины:', data)
+    }
+
+  } catch (error) {
+    console.error('Ошибка загрузки корзины:', error)
+    cartItems.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
 
 // Обновление состояния чекбокса "Выбрать всё"
 const updateAllCheckedState = () => {
-  if (cartStore.items.length === 0) {
+  if (cartItems.value.length === 0) {
     allChecked.value = false
     return
   }
   
-  allChecked.value = cartStore.items.every(item => checkedItems.value.has(item.gameId))
+  allChecked.value = cartItems.value.every(item => checkedItems.value.has(item.gameId))
 }
 
 // Проверка, выбран ли товар
@@ -168,7 +214,7 @@ const handleItemChecked = ({ itemId, checked }) => {
 const toggleAllItems = (checked) => {
   if (checked) {
     // Выбрать все
-    cartStore.items.forEach(item => {
+    cartItems.value.forEach(item => {
       checkedItems.value.add(item.gameId)
     })
   } else {
@@ -177,172 +223,269 @@ const toggleAllItems = (checked) => {
   }
 }
 
-// Оформление заказа
-const handleOrder = async () => {
-  if (isOrdering.value || cartStore.isEmpty) return
-  
-  isOrdering.value = true
-  
-  try {
-    // Собираем данные заказа
-    const orderItems = cartStore.items.map(item => ({
-      GameId: item.gameId,
-      Quantity: item.quantity
-    }))
-    
-    // TODO: Реализовать оформление заказа через API
-    // const orderResponse = await ordersApi.create({ OrderItems: orderItems })
-    
-    // Временный алерт для демонстрации
-    alert(`Заказ оформлен на сумму ${cartStore.totalPrice} ₽!`)
-    
-    // Очищаем корзину после успешного заказа
-    await cartStore.clearCart()
-    checkedItems.value.clear()
-    
-  } catch (error) {
-    console.error('Ошибка оформления заказа:', error)
-    alert('Ошибка оформления заказа. Попробуйте снова.')
-  } finally {
-    isOrdering.value = false
-  }
-}
-
 // Удаление товара из корзины
 const handleItemDelete = async (gameId) => {
-  const success = await cartStore.removeItemCompletely(gameId)
-  if (success) {
+  try {
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      alert('Требуется авторизация')
+      return false
+    }
+
+    // DELETE /api/carts/items – удалить указанное количество товара из корзины
+    // CartItemRequest: { GameId, Quantity }
+    const response = await fetch(`${API_URL}/carts/items`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        GameId: gameId,
+        Quantity: 1
+      }),
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+
+    // Удаляем товар из локального списка
+    cartItems.value = cartItems.value.filter(item => item.gameId !== gameId)
     checkedItems.value.delete(gameId)
+    
+    alert('Товар удален из корзины')
+    return true
+
+  } catch (error) {
+    console.error('Ошибка удаления товара:', error)
+    alert(error.message || 'Ошибка удаления товара')
+    return false
   }
 }
 
 // Изменение количества товара
 const handleQuantityChange = async ({ gameId, newQuantity }) => {
-  await cartStore.updateQuantity(gameId, newQuantity)
+  try {
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      alert('Требуется авторизация')
+      return
+    }
+
+    const item = cartItems.value.find(item => item.gameId === gameId)
+    if (!item) return
+
+    // Определяем, нужно ли добавить или удалить
+    const quantityDiff = newQuantity - item.quantity
+    
+    if (quantityDiff > 0) {
+      // Добавляем товар
+      await addToCart(gameId, quantityDiff)
+    } else if (quantityDiff < 0) {
+      // Удаляем товар
+      await removeFromCart(gameId, Math.abs(quantityDiff))
+    }
+
+    // Обновляем локальное состояние
+    const updatedItem = cartItems.value.find(item => item.gameId === gameId)
+    if (updatedItem) {
+      updatedItem.quantity = newQuantity
+    }
+
+  } catch (error) {
+    console.error('Ошибка изменения количества:', error)
+    alert('Ошибка изменения количества')
+  }
 }
 
-// Перезагрузка корзины (например, при изменении авторизации)
+// Добавление товара в корзину
+const addToCart = async (gameId, quantity = 1) => {
+  try {
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      throw new Error('Требуется авторизация')
+    }
+
+    // POST /api/carts/items – добавить позицию в корзину
+    const response = await fetch(`${API_URL}/carts/items`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        GameId: gameId,
+        Quantity: quantity
+      }),
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+
+    return await response.json()
+
+  } catch (error) {
+    console.error('Ошибка добавления в корзину:', error)
+    throw error
+  }
+}
+
+// Удаление товара из корзины (частичное)
+const removeFromCart = async (gameId, quantity = 1) => {
+  try {
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      throw new Error('Требуется авторизация')
+    }
+
+    // DELETE /api/carts/items – удалить указанное количество товара из корзины
+    const response = await fetch(`${API_URL}/carts/items`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        GameId: gameId,
+        Quantity: quantity
+      }),
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+
+    return await response.json()
+
+  } catch (error) {
+    console.error('Ошибка удаления из корзины:', error)
+    throw error
+  }
+}
+
+// Оформление заказа
+const handleOrder = async () => {
+  if (isOrdering.value || cartItems.value.length === 0) return
+  
+  isOrdering.value = true
+  
+  try {
+    const authToken = localStorage.getItem('auth_token')
+    
+    if (!authToken) {
+      alert('Требуется авторизация')
+      return
+    }
+
+    // Собираем данные заказа в формате OrderRequest
+    const orderRequest = {
+      OrderItems: cartItems.value.map(item => ({
+        GameId: item.gameId,
+        Quantity: item.quantity
+      }))
+    }
+
+    console.log('Отправляем заказ:', orderRequest)
+
+    // POST /api/orders – оформить заказ (Покупатель)
+    const response = await fetch(`${API_URL}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify(orderRequest),
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      } catch {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    }
+
+    const orderData = await response.json()
+    
+    alert(`Заказ оформлен успешно! Сумма: ${orderData.totalAmount || totalPrice.value} ₽`)
+    
+    // Очищаем корзину после успешного заказа
+    cartItems.value = []
+    checkedItems.value.clear()
+    allChecked.value = false
+
+  } catch (error) {
+    console.error('Ошибка оформления заказа:', error)
+    alert(error.message || 'Ошибка оформления заказа. Попробуйте снова.')
+  } finally {
+    isOrdering.value = false
+  }
+}
+
+// Общая сумма корзины
+const totalPrice = computed(() => {
+  return cartItems.value.reduce((sum, item) => {
+    const price = item.price || 0
+    const quantity = item.quantity || 1
+    return sum + (price * quantity)
+  }, 0)
+})
+
+// Общее количество товаров
+const totalItems = computed(() => {
+  return cartItems.value.reduce((sum, item) => sum + (item.quantity || 1), 0)
+})
+
+// Загружаем корзину при монтировании
+onMounted(async () => {
+  await fetchCart()
+})
+
+// Следим за изменениями авторизации
 watch([isAuthenticated, isCustomer], async ([authenticated, customer]) => {
   if (authenticated && customer) {
-    await cartStore.fetchCart()
+    await fetchCart()
   } else {
-    cartStore.clearCart()
+    cartItems.value = []
+    checkedItems.value.clear()
+    allChecked.value = false
   }
 })
+
+// Следим за изменениями в корзине
+watch(cartItems, () => {
+  updateAllCheckedState()
+}, { deep: true })
 </script>
 
 <style scoped>
-/* Стили остаются в основном без изменений, но добавляем новые классы */
-
-.auth-notice,
-.role-notice {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 10px;
-  padding: 15px 20px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  color: white;
-  animation: fadeIn 0.5s ease;
-  font-family: 'Montserrat', sans-serif;
-}
-
-.role-notice {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.auth-icon,
-.role-icon {
-  font-size: 32px;
-  flex-shrink: 0;
-}
-
-.auth-text,
-.role-text {
-  flex: 1;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.auth-text p,
-.role-text p {
-  margin: 0 0 5px 0;
-}
-
-.auth-text p:last-child,
-.role-text p:last-child {
-  margin-bottom: 0;
-}
-
-.auth-login-link,
-.role-link {
-  color: #03c3e6;
-  text-decoration: none;
-  font-weight: 600;
-  transition: opacity 0.2s;
-}
-
-.auth-login-link:hover,
-.role-link:hover {
-  opacity: 0.8;
-  text-decoration: underline;
-}
-
-.cart-content {
-  min-height: 300px;
-}
-
-.cart-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-  border-radius: 10px;
-  background: #F8F8F8;
-  margin-top: 20px;
-}
-
-.empty-icon {
-  font-size: 60px;
-  margin-bottom: 20px;
-  opacity: 0.7;
-}
-
-.empty-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 10px 0;
-  color: #333;
-  font-family: 'Montserrat Alternates', sans-serif;
-}
-
-.empty-text {
-  font-size: 15px;
-  color: #666;
-  margin: 0 0 15px 0;
-  max-width: 250px;
-}
-
-.empty-link {
-  background: #A53DFF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 20px;
-  font-size: 14px;
-  text-decoration: none;
-  font-family: 'Montserrat Alternates', sans-serif;
-  transition: background 0.2s;
-}
-
-.empty-link:hover {
-  background: #8C2BD9;
-}
-
-/* Остальные стили остаются как были */
+/* Стили остаются без изменений */
 .cart-root {
   min-height: 100vh;
   display: flex;
@@ -516,6 +659,114 @@ watch([isAuthenticated, isCustomer], async ([authenticated, customer]) => {
   font-size: 14px;
   color: #666;
   margin-top: 5px;
+}
+
+.auth-notice,
+.role-notice {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: white;
+  animation: fadeIn 0.5s ease;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.role-notice {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.auth-icon,
+.role-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.auth-text,
+.role-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.auth-text p,
+.role-text p {
+  margin: 0 0 5px 0;
+}
+
+.auth-text p:last-child,
+.role-text p:last-child {
+  margin-bottom: 0;
+}
+
+.auth-login-link,
+.role-link {
+  color: #03c3e6;
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.auth-login-link:hover,
+.role-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.cart-content {
+  min-height: 300px;
+}
+
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  border-radius: 10px;
+  background: #F8F8F8;
+  margin-top: 20px;
+}
+
+.empty-icon {
+  font-size: 60px;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+.empty-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: #333;
+  font-family: 'Montserrat Alternates', sans-serif;
+}
+
+.empty-text {
+  font-size: 15px;
+  color: #666;
+  margin: 0 0 15px 0;
+  max-width: 250px;
+}
+
+.empty-link {
+  background: #A53DFF;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  text-decoration: none;
+  font-family: 'Montserrat Alternates', sans-serif;
+  transition: background 0.2s;
+}
+
+.empty-link:hover {
+  background: #8C2BD9;
 }
 
 @media (max-width: 1100px) {

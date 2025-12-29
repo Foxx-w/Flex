@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { 
   auth, 
   cart, 
-  games as gamesApi, // ПЕРЕИМЕНОВАЛИ импорт
+  games as gamesApi, 
   genres as genresApi, 
   orders 
 } from '../services/api'
@@ -132,7 +132,6 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // Games methods (ИСПРАВЛЕНО: используем gamesApi вместо games)
   const loadGames = async (filters = {}, page = 1) => {
     try {
       // Формируем параметры запроса
@@ -308,7 +307,7 @@ export const useAppStore = defineStore('app', () => {
     removeFromCart,
 
     // Games (ИСПРАВЛЕНО: возвращаем переименованные переменные)
-    games: gamesList, // Экспортируем как games, но внутри это gamesList
+    games: gamesList, 
     currentGame,
     sellerGames,
     genres,
